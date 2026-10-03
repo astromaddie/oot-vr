@@ -194,7 +194,7 @@ being drawn. The laser (trigger = click, right stick = scroll) works as before. 
 
 | Key | Effect |
 | --- | --- |
-| `force_render` | draw and submit while `shouldRender=false`, synthetic head 1.6 m up with eyes +-32 mm, runtime FOV (or the Frame's measured one if the runtime gives none), hands parked in front of the chest; the game keeps being stepped |
+| `force_render` | keeps VR on while the headset is "doffed", draws and submits while `shouldRender=false`, synthetic head 1.6 m up with eyes +-32 mm, runtime FOV (or the Frame's measured one if the runtime gives none), hands parked in front of the chest; the game keeps being stepped |
 | `diag_yaw` | the synthetic head's yaw in degrees, positive turns left |
 | `dump_frame` | from XR frame N, on the first frame that draws the eyes (a frame that does not keeps it armed): `vr-dumps/vr-eye0.bmp`, `vr-eye1.bmp` (both multiview layers), `vr-state.txt` (poses, FOV, format, IPD, refresh). One blocking readback, on that frame only |
 | `timing` | GPU time of the eye pass (`GL_EXT_disjoint_timer_query`, read late, never waited on) in `[vr-perf]` |
