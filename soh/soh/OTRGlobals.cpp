@@ -392,11 +392,11 @@ struct QuestRomCandidate {
     bool masterQuest;
 };
 
-static std::vector<QuestRomCandidate> QuestScanForRoms() {
+static std::vector<QuestRomCandidate> QuestScanForRomsIn(const std::string& rootPath) {
     namespace fs = std::filesystem;
     std::vector<QuestRomCandidate> out;
     std::error_code ec;
-    const fs::path root("/storage/emulated/0");
+    const fs::path root(rootPath);
     fs::recursive_directory_iterator it(root, fs::directory_options::skip_permission_denied, ec), end;
     for (; !ec && it != end; it.increment(ec)) {
         const fs::directory_entry& e = *it;
@@ -432,6 +432,37 @@ static std::vector<QuestRomCandidate> QuestScanForRoms() {
         return a.valid != b.valid ? a.valid : a.path < b.path;
     });
     return out;
+}
+
+static std::vector<QuestRomCandidate> QuestScanForRoms() {
+#ifdef SOH_STEAM_FRAME
+    // Steam Frame: the ROM belongs in the data folder (/sdcard/Documents/OoTVR on the headset;
+    // deploy.sh --rom puts it there), so look there first. Only when it holds no usable ROM,
+    // widen to the rest of shared storage like the Quest build does. Lepton may not have
+    // /storage/emulated/0 at all, so /sdcard/Documents is searched too.
+    std::vector<QuestRomCandidate> found = QuestScanForRomsIn(Ship::Context::GetAppDirectoryPath());
+    for (const auto& rom : found) {
+        if (rom.valid) {
+            return found;
+        }
+    }
+    for (const char* root : { "/sdcard/Documents", "/storage/emulated/0" }) {
+        for (auto& rom : QuestScanForRomsIn(root)) {
+            const bool dup = std::any_of(found.begin(), found.end(), [&](const QuestRomCandidate& f) {
+                return f.path == rom.path;
+            });
+            if (!dup) {
+                found.push_back(std::move(rom));
+            }
+        }
+    }
+    std::sort(found.begin(), found.end(), [](const QuestRomCandidate& a, const QuestRomCandidate& b) {
+        return a.valid != b.valid ? a.valid : a.path < b.path;
+    });
+    return found;
+#else
+    return QuestScanForRomsIn("/storage/emulated/0");
+#endif
 }
 #endif
 
@@ -976,6 +1007,16 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
                          ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                              ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings);
             ImGui::SetWindowFontScale(1.5f);
+#ifdef SOH_STEAM_FRAME
+            ImGui::TextWrapped("OoT VR (Steam Frame) - first-time setup");
+            ImGui::Separator();
+            ImGui::TextWrapped("To play, the game needs your own copy of Ocarina of Time: a ROM file (usually "
+                               ".z64, .n64 or .v64; any file name works).");
+            ImGui::Spacing();
+            ImGui::TextWrapped("1. Copy your ROM into the OoTVR folder inside Documents on the headset "
+                               "(tools/steam_frame/deploy.sh --rom does this over SSH).");
+            ImGui::TextWrapped("2. Press Rescan below, then choose your ROM.");
+#else
             ImGui::TextWrapped("Quest 3: OOT - first-time setup");
             ImGui::Separator();
             ImGui::TextWrapped("To play, the game needs your own copy of Ocarina of Time: a ROM file (usually "
@@ -985,6 +1026,7 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
                                "(or File Explorer on Windows).");
             ImGui::TextWrapped("2. Copy your ROM into the Quest's Download folder.");
             ImGui::TextWrapped("3. Press Rescan below, then choose your ROM.");
+#endif
             ImGui::Spacing();
             if (ImGui::Button("Rescan", ImVec2(260.0f, 70.0f))) {
                 questRoms = QuestScanForRoms();
@@ -992,7 +1034,11 @@ void OTRGlobals::RunExtract(int argc, char* argv[]) {
             ImGui::Spacing();
             ImGui::Separator();
             if (questRoms.empty()) {
+                #ifdef SOH_STEAM_FRAME
+                ImGui::TextWrapped("No ROM files found on this headset yet.");
+#else
                 ImGui::TextWrapped("No ROM files found on this Quest yet.");
+#endif
             }
             for (size_t r = 0; r < questRoms.size(); r++) {
                 const auto& rom = questRoms[r];

@@ -222,6 +222,11 @@ public class MainActivity extends SDLActivity{
     }
 
     private File getTargetRootFolder() {
+        // Steam Frame: the data folder is fixed (no chooser, no stored preference).
+        if (BuildConfig.STEAM_FRAME) {
+            return getDefaultDataRootFolder();
+        }
+
         String configuredPath = preferences.getString(PREF_DATA_ROOT_PATH, null);
         if (configuredPath == null || configuredPath.isEmpty()) {
             return getDefaultDataRootFolder();
@@ -230,7 +235,50 @@ public class MainActivity extends SDLActivity{
         return new File(configuredPath);
     }
 
+    // Steam Frame: the ROM, the generated oot.o2r, saves, settings and mods live in
+    // /sdcard/Documents/OoTVR. Lepton (the Frame's Android container) maps /sdcard/Documents
+    // to the headset's ~/Documents, which survives Lepton resets; the container deletes
+    // app-private data when it exits. In Lepton 2.8.14 that folder is writable without
+    // all-files access. If it ever is not, fall back to the app's own files dir and say so
+    // in the log (a reset wipes that).
+    private static File sFrameDataRoot;
+
+    private File getFrameDataRootFolder() {
+        if (sFrameDataRoot == null) {
+            File docs = new File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "OoTVR");
+            if (isWritableDir(docs)) {
+                sFrameDataRoot = docs;
+            } else {
+                File own = getExternalFilesDir(null);
+                sFrameDataRoot = new File(own != null ? own : getFilesDir(), "OoTVR");
+                Log.w("setupFiles", "Documents folder " + docs + " is not writable (all-files access: " +
+                        (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()) +
+                        "); using " + sFrameDataRoot + ", which a Lepton reset wipes");
+            }
+        }
+        return sFrameDataRoot;
+    }
+
+    private static boolean isWritableDir(File dir) {
+        try {
+            if (!dir.isDirectory() && !dir.mkdirs()) {
+                return false;
+            }
+            File probe = new File(dir, ".write_test");
+            try (OutputStream out = new FileOutputStream(probe)) {
+                out.write(0);
+            }
+            return probe.delete();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private File getDefaultDataRootFolder() {
+        if (BuildConfig.STEAM_FRAME) {
+            return getFrameDataRootFolder();
+        }
         return new File(Environment.getExternalStorageDirectory(), "SOHVR");
     }
 
@@ -491,6 +539,11 @@ public class MainActivity extends SDLActivity{
 
     // Check if storage permission is granted
     private boolean hasStoragePermission() {
+        if (BuildConfig.STEAM_FRAME) {
+            // Lepton has no settings screen to grant all-files access in; what matters is that
+            // the data folder can be written (see getFrameDataRootFolder).
+            return true;
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             // Android 11 and above
             return Environment.isExternalStorageManager();
@@ -555,7 +608,9 @@ public class MainActivity extends SDLActivity{
     }
 
     private boolean ensureTargetRootFolderReady(File targetRootFolder) {
-        if (!isExternalStorageWritable() || !hasStoragePermission()) {
+        // Steam Frame: Lepton's getExternalStorageState need not say "mounted"; the write probe
+        // below is the test that counts.
+        if (!BuildConfig.STEAM_FRAME && (!isExternalStorageWritable() || !hasStoragePermission())) {
             return false;
         }
 
@@ -842,6 +897,10 @@ public class MainActivity extends SDLActivity{
     }
 
     public void changeDataFolderFromNative() {
+        if (BuildConfig.STEAM_FRAME) {
+            Log.i("setupFiles", "Steam Frame: the data folder is fixed at " + getTargetRootFolder());
+            return;
+        }
         showDataRootChooser(true);
     }
 
