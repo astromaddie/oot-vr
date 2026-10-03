@@ -7,6 +7,16 @@ set(CMAKE_C_STANDARD 23 CACHE STRING "The C standard to use")
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
 
 project(Ship VERSION 9.2.3 LANGUAGES C CXX)
+
+# Android only: package for the Valve Steam Frame (Lepton) instead of a Quest. Set by the
+# Gradle "frame" build type (Android/app/build.gradle); see docs/STEAM_FRAME.md. Defines
+# SOH_STEAM_FRAME for every C/C++ target below (soh and libultraship), so the VR layer
+# can gate its Frame-only code on it.
+option(SOH_STEAM_FRAME "Build the Android app for the Valve Steam Frame" OFF)
+if(SOH_STEAM_FRAME)
+    add_compile_definitions(SOH_STEAM_FRAME=1)
+endif()
+
 include(CMake/soh-cvars.cmake)
 include(CMake/lus-cvars.cmake)
 set(SPDLOG_LEVEL_TRACE 0)

@@ -25,6 +25,8 @@ android {
         targetSdkVersion 33
         versionCode 16
         versionName androidAppVersionName
+        // True only in the "frame" build type (Valve Steam Frame, see docs/STEAM_FRAME.md)
+        buildConfigField "boolean", "STEAM_FRAME", "false"
     }
     signingConfigs {
         release {
@@ -52,6 +54,25 @@ android {
                 }
             }
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+        // Valve Steam Frame (Lepton, Android 11): ./gradlew assembleFrame.
+        // Everything Frame-specific hangs off this build type so the Quest debug/release
+        // builds stay as they were: same native flags as debug plus SOH_STEAM_FRAME (also a
+        // C/C++ define), the manifest in src/frame, BuildConfig.STEAM_FRAME, and the game
+        // data in /sdcard/Documents/OoTVR.
+        frame {
+            initWith debug
+            matchingFallbacks = ['debug']
+            applicationIdSuffix ".frame"
+            versionNameSuffix "-frame"
+            // Sideloaded over adb / as a devkit title, so the debug key is enough.
+            signingConfig signingConfigs.debug
+            buildConfigField "boolean", "STEAM_FRAME", "true"
+            externalNativeBuild {
+                cmake {
+                    arguments "-DSOH_STEAM_FRAME=ON"
+                }
+            }
         }
         release {
             minifyEnabled false
