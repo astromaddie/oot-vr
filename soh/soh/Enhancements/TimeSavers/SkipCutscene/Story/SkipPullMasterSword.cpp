@@ -46,7 +46,7 @@ static void SkipPullMasterSword_OnSceneSpawnActors() {
     // Coming back as an adult uses a fixed camera aimed at the pedestal.
     // Switch to the normal camera that follows Link.
     Camera_InitPlayerSettings(camera, player);
-    Camera_RequestMode(camera, CAM_MODE_NORMAL);
+    Camera_ChangeMode(camera, CAM_MODE_NORMAL);
 
     // The normal camera starts behind Link. Start it in front of him,
     // facing him. It moves back behind him on its own.
