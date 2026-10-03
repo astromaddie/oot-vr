@@ -160,7 +160,7 @@ Nothing here has touched a Frame. "Host" means the Mac.
 
 | Claim | Level |
 | --- | --- |
-| `assembleFrame` builds from a clean checkout plus the fixes in this branch (NDK 26.0.10792818, CMake 3.31.5), APK about 60 MB | host build |
+| `assembleFrame` builds from a clean checkout plus the fixes in this branch (NDK 26.0.10792818, CMake 3.31.5), APK about 66 MB with soh.o2r | host build |
 | The APK's merged manifest has no headtracking feature, no Quest metadata, minSdk 24; the Khronos loader is in it; the Frame strings are in `libsoh.so` | host (inspection of the build output) |
 | The Frame-only C/C++ compiles with `-Wall -Wextra` with no warning in the new code, and the files that are shared with the Quest compile without `SOH_STEAM_FRAME` too | host (syntax-only runs with the build's own flags) |
 | The Quest debug build still configures and compiles natively (`externalNativeBuildDebug`) | host build (see the note below on what `assembleDebug` does) |
