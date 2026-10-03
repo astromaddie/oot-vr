@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- the Frame build is not a Quest app: do not call it "Quest 3: OOT" -->
+    <string name="app_name">OoT VR</string>
+</resources>
