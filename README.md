@@ -165,6 +165,8 @@ The Android/Quest project is in `Android/`. Clone with submodules (`git clone --
 
 The VR layer lives in `libultraship/src/fast/vr_openxr.cpp`; the VR gameplay features are in `soh/soh/Enhancements/vr-combat/`.
 
+There is also a build for the Valve Steam Frame (`./gradlew assembleFrame`, a separate build type that leaves the Quest builds alone). It is not tested on a headset yet; see [docs/STEAM_FRAME.md](docs/STEAM_FRAME.md) and [docs/VR_ARCHITECTURE.md](docs/VR_ARCHITECTURE.md).
+
 ### Further Reading
 More detailed documentation can be found in the 'docs' directory, including the aforementioned [building instructions](docs/BUILDING.md).
 
