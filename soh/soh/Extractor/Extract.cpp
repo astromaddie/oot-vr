@@ -5,6 +5,7 @@
 #pragma comment(lib, "Shlwapi.lib")
 #endif
 #include "Extract.h"
+#include <ship/Context.h>
 #include "portable-file-dialogs.h"
 #include <ship/utils/binarytools/BitConverter.h>
 #include "soh/ShipUtils.h"
@@ -675,7 +676,17 @@ const char* Extractor::GetZapdVerStr() const {
 
 std::string Extractor::Mkdtemp() {
 #ifdef __ANDROID__
-    std::string temp_dir = SDL_AndroidGetExternalStoragePath();
+    // SDL_AndroidGetExternalStoragePath() can return NULL (Lepton, the Steam Frame's container, may
+    // have no app-specific external dir); std::string(NULL) would crash the first ROM extraction.
+    const char* sdlExternal = SDL_AndroidGetExternalStoragePath();
+    std::string temp_dir;
+    if (sdlExternal != nullptr) {
+        temp_dir = sdlExternal;
+    } else {
+        temp_dir = Ship::Context::GetAppDirectoryPath() + "/tmp";
+        std::error_code mkEc;
+        std::filesystem::create_directories(temp_dir, mkEc);
+    }
 #else
     std::string temp_dir = std::filesystem::temp_directory_path().string();
 #endif
