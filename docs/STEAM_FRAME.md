@@ -56,11 +56,19 @@ Things a clean checkout trips over, none of them Frame-specific:
 - The manifest asks for `@mipmap/ic_launcher`, but the icon PNGs are not in git (`*.png` is ignored) and
   there is no other mipmap resource. The Frame build type carries its own adaptive icon in `src/frame/res`.
   A clean `assembleDebug` / `assembleRelease` still stops in resource linking for that reason.
-- **`soh.o2r` is not in the APK.** It holds the port's own assets (fonts, shaders, the custom textures). It is
-  generated on a host with `GenerateSohOtr` (needs a host-built ZAPD) and the Quest releases bundle it from
-  `Android/app/src/main/assets/soh.o2r`, which git ignores. Put one there before `assembleFrame` or the game
-  will have no HUD assets. It is the port's data, not a game archive, but it is a `.o2r`, so it is not committed.
-  This APK was built without one.
+- **`soh.o2r` has to be put in the APK by hand.** It holds the port's own assets (fonts, shaders, the custom
+  textures), needs no ROM, and is generated on a host by the `GenerateSohOtr` target (a host-built ZAPD does the
+  packing). The Quest releases bundle it from `Android/app/src/main/assets/soh.o2r`, which git ignores (`*.o2r`),
+  so it is not committed. To make it on a Mac:
+
+  ```bash
+  brew install ninja glew libzip nlohmann-json tinyxml2 opus opusfile sdl2_net sdl2   # whatever of these you lack
+  cmake -S . -B /tmp/soh-host -G Ninja -DBUILD_REMOTE_CONTROL=1
+  cmake --build /tmp/soh-host --target GenerateSohOtr
+  cp soh/soh.o2r Android/app/src/main/assets/soh.o2r      # then assembleFrame; check with unzip -l
+  ```
+
+  Without it the game starts with no HUD assets.
 
 ## Deploy
 
@@ -75,8 +83,12 @@ deletes its apps when it exits, so to play use the persistent **OoTVR** title in
 devkit title, `~/devkit-game/OoTVR/OoT-VR.apk`; every later `deploy.sh` refreshes that copy). A binary started
 over adb gets no controllers and no focus from SteamVR: use it for logs and launch the Steam title to play.
 
-SteamVR runs one scene app at a time, and the headset may be in use by another session. Look at
-`pgrep -af lepton` and the journal on the Frame before launching anything.
+SteamVR runs one scene app at a time, and the headset is shared by several sessions. `deploy.sh` books the Frame
+through `~/.claude/skills/steam-frame-vr-port/scripts/frame-lock.sh` (session name `FRAME_LOCK_SESSION`, default
+`code-fe`) before it installs, launches, registers a title or writes `vr-diag.ini`, stops with the holder's status if
+the Frame is booked, and checks for a running Steam title or recent `[openxr]` journal lines before launching.
+`--release` gives the booking back. Read-only steps (`--logcat`/`--pull-dumps` on an existing run, `--ssh-log`) need no
+booking. adb goes to Lepton Development over Wi-Fi: `FRAME_ADB_HOST` defaults to `192.168.1.31:5555`.
 
 The ROM goes into `~/Documents/OoTVR` (any file name; the game finds it by content, like on the Quest). On the
 first start it builds `oot.o2r` from it, which takes a minute or two with only loading dots in the headset. Settings
@@ -91,7 +103,7 @@ for the Quest's left X and Y, so motion combat, the item selector and the ocarin
 
 | Physical | Game (default item-selector profile) |
 | --- | --- |
-| R Menu | **Start** (pause). Held back while View is down |
+| R Menu | **Start** (pause), on release, and only if View was not touched while Menu was down |
 | L View, short press | Back (B) in the 2D menus (file select, pause). Nothing in play: OoT has no Select |
 | L View, hold 1 s | Recentre, 0.6 / 80 ms buzz on both hands |
 | L View, hold 3 s | Recentre and re-measure the standing height, buzz again |
@@ -123,7 +135,8 @@ settings; Index has no menu button, so Y pauses).
 
 A headset on a desk reports `shouldRender=false`. By default the Frame build ends that frame empty at once.
 Frame-only switches live in `~/Documents/OoTVR/vr-diag.ini` (`deploy.sh --diag KEY=VAL`; the architecture doc lists
-them with their effects): `force_render`, `diag_yaw`, `dump_frame`, `timing`, `autostart`, `autostart_entrance`.
+them with their effects): `force_render`, `diag_yaw`, `dump_frame`, `timing`, `autostart`, `autostart_entrance`,
+`stereo_divisor` (1 to 4, overrides `gVrStereoDivisor` for the run, to measure 1 against 2).
 With `force_render` the game draws and submits from a synthetic head at 1.6 m (eyes +-32 mm) with the hands parked,
 and keeps being stepped. `autostart` skips the title and file select through the game's debug-save path (no save
 file is touched) and lands in Kokiri Forest. The dumps are `vr-dumps/vr-eye0.bmp`, `vr-eye1.bmp` and `vr-state.txt`.
@@ -154,7 +167,7 @@ Nothing here has touched a Frame. "Host" means the Mac.
 | Binding table: real component paths per profile, Frame layout, unique action and localized names, Frame profile first | host test (`check_bindings.py`, source text only) |
 | System layer: View short / 1 s / 3 s, chord, R Menu held back, focus loss | host test (production file, fake clock) |
 | `vr-diag.ini` parser, synthetic head, BMP writer, `[vr-perf]` line format | host test |
-| `deploy.sh` control flow | host, with stand-ins for ssh, scp and adb |
+| `deploy.sh` control flow, including the booking refusing when someone else holds the Frame | host, with stand-ins for ssh, scp, adb and a temporary lock directory |
 | Installs in Lepton, SDL activity starts, ROM found in `~/Documents/OoTVR`, `oot.o2r` built | **not run** |
 | Session, 1728x1728 sRGB swapchain with `arraySize=2`, multiview FBO complete, 72 Hz loop | **not run** |
 | `force_render`, dumps, `[vr-perf]`, `autostart` | **not run** |
@@ -169,7 +182,7 @@ missing launcher icon, with or without these changes (see above). The native par
 
 - First thing to run on a Frame: install, `--diag force_render=1 --diag autostart=1 --diag dump_frame=600`, read the
   evidence lines above, look at the dumps.
-- No `soh.o2r` in the APK (see Build).
+- `soh.o2r` has to be generated and dropped in before `assembleFrame` (see Build); a built-in way to do it is not wired up.
 - The world is redrawn every second XR frame by default (`gVrStereoDivisor` = 2), so 36 Hz of new eye images at 72 Hz,
   reprojected in between. Valve's floor is 72 fps at 1728x1728; whether this counts is a question for a wear session.
 - Focus loss does not pause the game or audio yet (standard section 0); input just goes inactive.

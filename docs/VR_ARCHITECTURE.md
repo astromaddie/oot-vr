@@ -59,7 +59,9 @@ timing is derived from `predictedDisplayPeriod`, not assumed.
 - `force_render` (vr-diag.ini): draws and submits anyway from a synthetic head. See section 6.
 - Session states are logged by name (`[vr] Session state A -> B`). `EXITING` and `LOSS_PENDING` finish the activity
   (and exit the process after 3 s if the SDL thread does not stop). SteamVR's own menu is the quit button; the game
-  has no "Quit" row.
+  has no "Quit" row. From then on nothing may start OpenXR again (`vr_apply_mode_request` and `vr_begin_frame` return
+  early) and the Frame build never writes `gVrEnabled=0`. The settings are saved first and a save file write in flight is
+  waited for, at most 2.5 s. A failed OpenXR start is retried at most every 10 s instead of every tick.
 - **Focus loss** does not pause the game or the audio yet. Input goes inactive on its own (actions are not active
   without focus) and the system layer cancels a half-made View press.
 
@@ -127,8 +129,10 @@ scene-transition fade and the in-wall darkening when advertised. Not submitted: 
   (`apply_turn`), never the submitted pose.
 - Recentre, Frame build, View held 1 s: at the start of the next frame the LOCAL space is re-created with the head's
   yaw and horizontal position as its origin (what the runtime's own recentre does to its LOCAL space). The accumulated
-  artificial turn is dropped, roomscale is re-zeroed, and the flat panel and an open settings menu are re-placed.
-  Held 3 s: the same, then the standing height (world scale) is measured again. A runtime recentre is handled as before.
+  artificial turn is dropped, roomscale is re-zeroed (at the next frame that locates views), hand history is reset,
+  the eye poses cached for resubmission are moved into the new space, and the flat panel and an open settings menu are
+  re-placed. Held 3 s: the same, then the standing height (world scale) is measured again. A runtime (SteamVR system)
+  recentre makes the port go back to the runtime's LOCAL space at identity, dropping our offset, with the same resets.
   This is host-tested only as far as the timing goes; the space handling has not run.
 
 ## 5. Input
@@ -172,7 +176,7 @@ the effects.
 
 | Input | Effect |
 | --- | --- |
-| R Menu | game Start. Not delivered while View is down |
+| R Menu | game Start, as a tap: fires on release, and only if View was not down at any time while Menu was. It reaches the game as a 150 ms pulse of the right hand's MENU bit (so the VR Inputs binding still applies), and not at all while the settings menu is up. So Menu + View in any order and either release order never pauses or un-pauses the game |
 | View short press | Back pulse (150 ms) to the game, which turns it into B in the 2D menus only; ImGui gets it as B (cancel) |
 | View hold 1 s | recentre + 0.6/80 ms buzz on both hands (sfvr's `system` haptic) |
 | View hold 3 s | recentre + standing height + buzz |
@@ -200,6 +204,7 @@ being drawn. The laser (trigger = click, right stick = scroll) works as before. 
 | `timing` | GPU time of the eye pass (`GL_EXT_disjoint_timer_query`, read late, never waited on) in `[vr-perf]` |
 | `autostart` | the title hands over to gameplay through the debug-save path, no controller, no save file touched |
 | `autostart_entrance` | the entrance for `autostart`, default `0x00EE` (Kokiri Forest) |
+| `stereo_divisor` | 1 to 4, overrides `gVrStereoDivisor` for the run (default stays 2) so 1 and 2 can be measured on a device |
 
 `[vr-perf]` every 10 s (sfvr's formatter): `fps`, `missed` (a frame later than 1.5 display periods), `cpu`, then
 `tick`, `eyes`, `hud`, `other` in ms (CPU, `xrWaitFrame` excluded; `tick` is amortized over the XR frames because it
