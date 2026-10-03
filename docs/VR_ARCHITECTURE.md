@@ -4,9 +4,8 @@ Current state, not a log. Build and deploy steps are in [STEAM_FRAME.md](STEAM_F
 port is described in [../QUEST.md](../QUEST.md) and [../CHANGES.md](../CHANGES.md). The conventions are the Steam
 Frame port standard (`standard.md`) and the shared `sfvr` library.
 
-Nothing here has run on a Frame (2026-10-04). The status table at the end uses three states: **played in headset**,
-**verified unattended** (a headset on a desk, force-render, logcat, dumps) and **not started / not run**. Today
-`played in headset` and `verified unattended` are empty; what exists is host evidence, and the table says so.
+First unattended device run: 2026-10-04. Nothing has been worn yet. The status table at the end uses three states: **played in headset**,
+**verified unattended** (a headset on a desk, force-render, logcat, dumps) and **not started / not run**.
 
 ## 1. Target
 
@@ -233,13 +232,35 @@ not listed.
 | --- | --- |
 | `assembleFrame` on a Mac; Khronos loader and manifest as intended in the APK; Quest debug native build still compiles | host build / host inspection |
 | Binding table, system layer logic, diag parser, `[vr-perf]` format, `deploy.sh` flow | host test |
-| Data root and ROM pickup in `/sdcard/Documents/OoTVR`, first-run extraction | built, not run |
-| Session, swapchain, multiview, 72 Hz loop, logging | built, not run |
-| `force_render`, `autostart`, dumps, `[vr-perf]` | built, not run |
+| Data root and ROM pickup in `/sdcard/Documents/OoTVR`, first-run extraction (~60 s) | verified unattended |
+| Session, 1728² sRGB swapchain, multiview, 72 Hz loop | verified unattended (OpenXR init lines are missing from the log file) |
+| `force_render`, `autostart`, dumps at yaw 0/90, `[vr-perf]`; 72 fps in Kokiri Forest at divisor 2 and 1 | verified unattended |
 | Frame profile, X/Y/Menu/View/D-pad/bumpers | built, not run |
 | System layer, recentre by View, settings chord | built, host-tested logic only; space handling not run |
 | In-headset menu with the XR pad | built, not run |
 | Quit from SteamVR | built, not run |
 | Worn: scale, comfort, HUD, controls | not started |
-| `soh.o2r` bundled in the APK | not done (needs a host-built one) |
+| `soh.o2r` bundled in the APK | done by hand (host-built, gitignored); not wired into Gradle |
 | Pause game and audio on focus loss, depth submission, foveation, Frame render models | not started |
+
+## 9. First-wear checklist (about 15 minutes)
+
+Launch **OoTVR** from the Steam library (not over adb), headset on, both controllers awake. The first start
+after an install may show loading dots for a few seconds.
+
+1. Title screen and file select: is the menu readable, and does the laser point where the controller points?
+   Make a new file. Name entry uses the D-pad or stick plus A.
+2. In Kokiri Forest: look around. The world should stay put when you turn your head. Is Link's scale right
+   (you are child Link's height)?
+3. Walk with the L stick, turn with the R stick (snap 45 degrees). Comfortable?
+4. Swing the sword hand at a bush, raise the shield hand, Z-target with the L grip.
+5. Tap R Menu: the pause screen opens; tap again to close. Short View in the pause screen goes back.
+6. Hold View 1 s: recentre with a buzz on both hands. Hold View, then press Menu, for the VR settings.
+   Can you move around that menu with the controller?
+7. Enter Link's house or the shop: those rooms are flat backdrops in the original (green here without
+   Djipi's 3DS pack).
+8. Watch the opening Deku Tree cutscene, if you get that far: does the camera behave?
+9. Quit from the SteamVR menu. Did it close cleanly? Relaunch: does the save load?
+
+Report anything that felt wrong, plus which stereo mode felt smoother if you try both
+(VR Settings > Performance > Stereo Render Divisor, 1 vs 2).

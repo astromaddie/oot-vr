@@ -156,7 +156,7 @@ Use `deploy.sh --ssh-log 80` to read the same lines from the game's own log file
 
 ## Verified, and at which level
 
-Nothing here has touched a Frame. "Host" means the Mac.
+"Host" means the Mac. "Unattended device" means the Frame on a desk (Wi-Fi adb, `force_render`), run on 2026-10-04. Nothing has been worn yet.
 
 | Claim | Level |
 | --- | --- |
@@ -168,10 +168,13 @@ Nothing here has touched a Frame. "Host" means the Mac.
 | System layer: View short / 1 s / 3 s, chord, R Menu held back, focus loss | host test (production file, fake clock) |
 | `vr-diag.ini` parser, synthetic head, BMP writer, `[vr-perf]` line format | host test |
 | `deploy.sh` control flow, including the booking refusing when someone else holds the Frame | host, with stand-ins for ssh, scp, adb and a temporary lock directory |
-| Installs in Lepton, SDL activity starts, ROM found in `~/Documents/OoTVR`, `oot.o2r` built | **not run** |
-| Session, 1728x1728 sRGB swapchain with `arraySize=2`, multiview FBO complete, 72 Hz loop | **not run** |
-| `force_render`, dumps, `[vr-perf]`, `autostart` | **not run** |
-| Frame controller profile accepted by SteamVR; button layout as bound here | **not run**; the paths are the ones GoldenEye, Halo and F-Zero bind, which have been worn |
+| Installs in Lepton over Wi-Fi adb; SDL activity starts; data root `/storage/emulated/0/Documents/OoTVR` with no permission prompt; the USA 1.0 ROM is found there and `oot.o2r` is built from it in about 60 s on the first start | unattended device |
+| OpenXR through the Khronos loader and `/vendor/etc/openxr/1/active_runtime.json`; session reaches SYNCHRONIZED; 1728x1728 `GL_SRGB8_ALPHA8` swapchain, multiview on (`vr-state.txt`) | unattended device |
+| `force_render` steps the game with the headset off; `autostart` warps into Kokiri Forest (scene 0x55, entrance 0xEE) with no controller; dumps at yaw 0 and 90 show a world-locked stereo view with the expected disparity (near hands shift more than the village) | unattended device (`scratchpad/dumps/`, not committed) |
+| Kokiri Forest, divisor 2 (default): 72.0 fps, 0 missed per 10 s, CPU 10.8-11.3 ms, GPU 3.6-4.1 ms | unattended device (`[vr-perf]`) |
+| Kokiri Forest, divisor 1 (both eyes every frame): 72.0 fps, 0-1 missed per 10 s, CPU 12.8 ms of the 13.9 ms period, GPU 2.5 ms. CPU-bound with about 1 ms to spare; heavier scenes are untested | unattended device (`[vr-perf]`) |
+| The persistent `OoTVR` devkit title is registered and holds the APK | unattended device (registered, **not launched from Steam yet**) |
+| Frame controller profile accepted by SteamVR; button layout as bound here | **not run** (needs a Steam launch); the paths are the ones GoldenEye, Halo and F-Zero bind, which have been worn |
 | System layer, recentre, VR settings chord, in-headset menu pad input, Quit from SteamVR | **not run** |
 | Anything about what the eyes see, comfort, performance, audio | **not verified (nothing worn)** |
 
@@ -180,9 +183,10 @@ missing launcher icon, with or without these changes (see above). The native par
 
 ## Open problems / next
 
-- First thing to run on a Frame: install, `--diag force_render=1 --diag autostart=1 --diag dump_frame=600`, read the
-  evidence lines above, look at the dumps.
-- `soh.o2r` has to be generated and dropped in before `assembleFrame` (see Build); a built-in way to do it is not wired up.
+- First wear (phase 3): launch **OoTVR** from the Steam library and run the checklist in VR_ARCHITECTURE.md section 9.
+- Decide the stereo divisor for the Frame: 2 (Quest default, 36 Hz eye updates) or 1 (72 Hz, CPU-bound with ~1 ms spare in Kokiri Forest). Measure Hyrule Field and Kakariko before changing the default.
+- The OpenXR init lines (runtime name, profile suggestions, swapchain) do not reach the log file; only the session-state lines do. Log them after the logger is up.
+- `soh.o2r` has to be generated and dropped in before `assembleFrame` (see Build); it is not wired into Gradle.
 - The world is redrawn every second XR frame by default (`gVrStereoDivisor` = 2), so 36 Hz of new eye images at 72 Hz,
   reprojected in between. Valve's floor is 72 fps at 1728x1728; whether this counts is a question for a wear session.
 - Focus loss does not pause the game or audio yet (standard section 0); input just goes inactive.
