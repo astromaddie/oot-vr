@@ -96,6 +96,18 @@ static int32_t VrInputDefault(const VrInputDef& d) {
     }
     return d.defaultMask;
 }
+#ifdef SOH_STEAM_FRAME
+// Steam Frame: R Menu is Start, the left stick click is a plain game action. Keep in sync with
+// sVrBindDefaults in padmgr.c.
+static const VrInputDef sVrInputDefsClassic[] = {
+    { "L Trigger", "gVrBindLTrigger", BTN_Z },      { "L Grip", "gVrBindLGrip", BTN_R },
+    { "X", "gVrBindLPrimary", BTN_CLEFT },          { "Y", "gVrBindLSecondary", BTN_CRIGHT },
+    { "L Stick", "gVrBindLStickClick", 0 },         { "L Menu", "gVrBindLMenu", 0 },
+    { "R Trigger", "gVrBindRTrigger", BTN_B },      { "R Grip", "gVrBindRGrip", 0 },
+    { "A", "gVrBindRPrimary", BTN_A },              { "B", "gVrBindRSecondary", BTN_CDOWN },
+    { "R Stick", "gVrBindRStickClick", 0 },         { "R Menu", "gVrBindRMenu", BTN_START },
+};
+#else
 static const VrInputDef sVrInputDefsClassic[] = {
     { "L Trigger", "gVrBindLTrigger", BTN_Z },      { "L Grip", "gVrBindLGrip", BTN_R },
     { "X", "gVrBindLPrimary", BTN_CLEFT },          { "Y", "gVrBindLSecondary", BTN_CRIGHT },
@@ -104,13 +116,19 @@ static const VrInputDef sVrInputDefsClassic[] = {
     { "A", "gVrBindRPrimary", BTN_A },              { "B", "gVrBindRSecondary", BTN_CDOWN },
     { "R Stick", "gVrBindRStickClick", 0 },         { "R Menu", "gVrBindRMenu", 0 },
 };
+#endif
 static const VrInputDef sVrInputDefsSelector[] = {
     { "L Trigger", "gVrBindSelLTrigger", 0 },              { "L Grip", "gVrBindSelLGrip", BTN_Z },
     { "X", "gVrBindSelLPrimary", 0 },                      { "Y", "gVrBindSelLSecondary", BTN_START },
     { "L Stick", "gVrBindSelLStickClick", BTN_L },         { "L Menu", "gVrBindSelLMenu", 0 },
     { "R Trigger", "gVrBindSelRTrigger", 0 },              { "R Grip", "gVrBindSelRGrip", BTN_R },
     { "A", "gVrBindSelRPrimary", BTN_A },                  { "B", "gVrBindSelRSecondary", BTN_B },
-    { "R Stick", "gVrBindSelRStickClick", 0 },             { "R Menu", "gVrBindSelRMenu", 0 },
+    { "R Stick", "gVrBindSelRStickClick", 0 },
+#ifdef SOH_STEAM_FRAME
+    { "R Menu", "gVrBindSelRMenu", BTN_START }, // Steam Frame: R Menu is Start (padmgr.c)
+#else
+    { "R Menu", "gVrBindSelRMenu", 0 },
+#endif
 };
 static const VrInputDef sVrInputDefsOcarina[] = {
     { "L Trigger", "gVrBindOcaLTrigger", BTN_CDOWN }, { "L Grip", "gVrBindOcaLGrip", BTN_Z },
@@ -118,7 +136,11 @@ static const VrInputDef sVrInputDefsOcarina[] = {
     { "L Stick", "gVrBindOcaLStickClick", 0 },        { "L Menu", "gVrBindOcaLMenu", 0 },
     { "R Trigger", "gVrBindOcaRTrigger", BTN_A },     { "R Grip", "gVrBindOcaRGrip", BTN_R },
     { "A", "gVrBindOcaRPrimary", BTN_CRIGHT },        { "B", "gVrBindOcaRSecondary", BTN_B },
+#ifdef SOH_STEAM_FRAME
+    { "R Stick", "gVrBindOcaRStickClick", 0 },        { "R Menu", "gVrBindOcaRMenu", BTN_START },
+#else
     { "R Stick", "gVrBindOcaRStickClick", 0 },        { "R Menu", "gVrBindOcaRMenu", 0 },
+#endif
     // Stick DIRECTIONS, bindable in the ocarina set only (indices 12+, order up/down/left/right
     // per hand — the listener below computes 12 + hand * 4 + dir). A hand with any direction
     // bound claims that whole stick while playing: its stock job (left: pitch bend; right:
@@ -1590,9 +1612,17 @@ void SohMenu::AddMenuVRSettings() {
         .Options(ComboboxOptions()
                      .DefaultIndex(0)
                      .ComboMap(vrMenuButtonOptions)
+#ifdef SOH_STEAM_FRAME
+                     .Tooltip("Steam Frame controllers: hold Menu and View together for half a second to "
+                              "open or close this menu. This extra button is ignored there, because stick "
+                              "clicks stay game actions. With a Touch or Index controller the left menu "
+                              "button opens the menu, and this picks a second button that does too.")
+#else
                      .Tooltip("The left menu button (hamburger) always opens this settings menu. Pick a "
                               "second button that also opens and closes it. That button is no longer "
-                              "passed to the game."));
+                              "passed to the game.")
+#endif
+        );
     AddWidget(buttonsPath, "VrInputBindings", WIDGET_CUSTOM).CustomFunction(VrInputBindings).HideInSearch(true);
 
     AddWidget(buttonsPath, "Item Select (Half-Life: Alyx Style)", WIDGET_SEPARATOR_TEXT);

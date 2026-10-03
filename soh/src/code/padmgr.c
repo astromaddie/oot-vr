@@ -352,10 +352,20 @@ void PadMgr_HandleRetraceMsg(PadMgr* padMgr) {
                 { "gVrBindRTrigger", "gVrBindRGrip", "gVrBindRPrimary", "gVrBindRSecondary", "gVrBindRStickClick",
                   "gVrBindRMenu" },
             };
+#ifdef SOH_STEAM_FRAME
+            // Steam Frame: R Menu is Start (pause), as in every Frame port; the left stick click is a
+            // plain game action there, so it no longer carries Start. Keep in sync with
+            // sVrInputDefsClassic in SohMenuVRSettings.cpp.
+            static const s32 sVrBindDefaults[2][6] = {
+                { BTN_Z, BTN_R, BTN_CLEFT, BTN_CRIGHT, 0, 0 },
+                { BTN_B, 0, BTN_A, BTN_CDOWN, 0, BTN_START },
+            };
+#else
             static const s32 sVrBindDefaults[2][6] = {
                 { BTN_Z, BTN_R, BTN_CLEFT, BTN_CRIGHT, BTN_START, 0 },
                 { BTN_B, 0, BTN_A, BTN_CDOWN, 0, 0 },
             };
+#endif
             // SELECTOR (selector on): the Alyx-style selector equips and the holding hand's
             // TRIGGER uses the item, so both triggers are reserved (unbound, and skipped below)
             // and the C buttons no longer pull anything out — they are left unbound here
@@ -374,10 +384,18 @@ void PadMgr_HandleRetraceMsg(PadMgr* padMgr) {
             };
             // QuestShip defaults (Morgan's layout): left grip Z-target, right grip shield (R),
             // Y = Start, left stick click = L; A/B on the right face buttons.
+#ifdef SOH_STEAM_FRAME
+            // Steam Frame: R Menu is Start as well (Y keeps the Start it has on the Quest).
+            static const s32 sVrBindSelDefaults[2][6] = {
+                { 0, BTN_Z, 0, BTN_START, BTN_L, 0 },
+                { 0, BTN_R, BTN_A, BTN_B, 0, BTN_START },
+            };
+#else
             static const s32 sVrBindSelDefaults[2][6] = {
                 { 0, BTN_Z, 0, BTN_START, BTN_L, 0 },
                 { 0, BTN_R, BTN_A, BTN_B, 0, 0 },
             };
+#endif
             // QuestShip: START sits on the stick click of the hand WITHOUT the selector, so in
             // left-handed mode (selector on the left stick) it moves to the right stick click.
             // Keep in sync with VrInputDefault in SohMenuVRSettings.cpp.
@@ -401,10 +419,18 @@ void PadMgr_HandleRetraceMsg(PadMgr* padMgr) {
                 { "gVrBindOcaRTrigger", "gVrBindOcaRGrip", "gVrBindOcaRPrimary", "gVrBindOcaRSecondary",
                   "gVrBindOcaRStickClick", "gVrBindOcaRMenu" },
             };
+#ifdef SOH_STEAM_FRAME
+            // Steam Frame: R Menu pauses while the ocarina is out too.
+            static const s32 sVrBindOcaDefaults[2][6] = {
+                { BTN_CDOWN, BTN_Z, BTN_CLEFT, BTN_CUP, 0, 0 },
+                { BTN_A, BTN_R, BTN_CRIGHT, BTN_B, 0, BTN_START },
+            };
+#else
             static const s32 sVrBindOcaDefaults[2][6] = {
                 { BTN_CDOWN, BTN_Z, BTN_CLEFT, BTN_CUP, 0, 0 },
                 { BTN_A, BTN_R, BTN_CRIGHT, BTN_B, 0, 0 },
             };
+#endif
             // OCARINA stick directions: in this set ONLY, the four cardinal deflections of each
             // thumbstick are bindable inputs too (gameplay sticks keep their stock jobs: move and
             // turn). Dominant-axis with the same 0.5 threshold as the stock C-stick mapping, so a
@@ -525,6 +551,43 @@ void PadMgr_HandleRetraceMsg(PadMgr* padMgr) {
             if (rx > 0.5f) vrPad->button |= BTN_CRIGHT;
             if (rx < -0.5f) vrPad->button |= BTN_CLEFT;
         }
+
+#ifdef SOH_STEAM_FRAME
+        // Steam Frame buttons with no Quest counterpart (VR_GetFrameButtons is 0 for any other
+        // controller). View itself is the system layer's (recentre, the settings chord) and never
+        // arrives here except as its short-press Back; R Menu is bound above (Start).
+        {
+            const uint16_t vrF = VR_GetFrameButtons();
+            if (vrF != 0) {
+                const s32 vrMenus = VR_IsFlatScreen();
+                // View, short press: Back (B) in the 2D menus; nothing in play (OoT has no Select).
+                if ((vrF & VR_FBTN_BACK) && vrMenus) {
+                    vrPad->button |= BTN_B;
+                }
+                // D-pad: in the 2D menus (file select, pause) it steers the control stick, because
+                // that is what those menus read; in play it is the N64 D-pad (D-pad equips, ocarina).
+                if (vrMenus) {
+                    if (vrF & VR_FBTN_DPAD_UP) vrPad->stick_y = 80;
+                    if (vrF & VR_FBTN_DPAD_DOWN) vrPad->stick_y = -80;
+                    if (vrF & VR_FBTN_DPAD_LEFT) vrPad->stick_x = -80;
+                    if (vrF & VR_FBTN_DPAD_RIGHT) vrPad->stick_x = 80;
+                } else {
+                    if (vrF & VR_FBTN_DPAD_UP) vrPad->button |= BTN_DUP;
+                    if (vrF & VR_FBTN_DPAD_DOWN) vrPad->button |= BTN_DDOWN;
+                    if (vrF & VR_FBTN_DPAD_LEFT) vrPad->button |= BTN_DLEFT;
+                    if (vrF & VR_FBTN_DPAD_RIGHT) vrPad->button |= BTN_DRIGHT;
+                }
+                // Bumpers: the N64's own shoulder buttons. In the 2D menus the left one is Z, so
+                // Z and R page the pause screen left and right like on the console.
+                if (vrF & VR_FBTN_BUMPER_L) {
+                    vrPad->button |= vrMenus ? BTN_Z : BTN_L;
+                }
+                if (vrF & VR_FBTN_BUMPER_R) {
+                    vrPad->button |= BTN_R;
+                }
+            }
+        }
+#endif
     }
     // #endregion
 
