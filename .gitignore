@@ -464,3 +464,6 @@ soh/properties.h
 
 # Claude working docs (design notes, plans)
 /markdowns/
+
+# Steam Frame: logcat captures and dumps pulled by tools/steam_frame/deploy.sh
+/scratchpad/
