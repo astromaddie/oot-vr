@@ -23,7 +23,7 @@ static int failures;
     } while (0)
 
 struct Counts {
-    int back = 0, recentre = 0, recalibrate = 0, toggle = 0, held_menu_frames = 0;
+    int back = 0, recentre = 0, recalibrate = 0, toggle = 0, menu_taps = 0;
 };
 
 static double g_now = 100.0;
@@ -43,7 +43,7 @@ static Counts run(double seconds, bool view, bool menu, bool focused = true) {
         c.recentre += o.recentre;
         c.recalibrate += o.recalibrate;
         c.toggle += o.toggle_settings;
-        c.held_menu_frames += o.hold_menu_from_game;
+        c.menu_taps += o.menu_tap;
         g_now += dt;
     }
     return c;
@@ -56,6 +56,7 @@ static Counts press(double seconds, bool menu = false) {
     a.recentre += b.recentre;
     a.recalibrate += b.recalibrate;
     a.toggle += b.toggle;
+    a.menu_taps += b.menu_taps;
     return a;
 }
 
@@ -105,14 +106,53 @@ int main() {
     c = press(3.2);
     CHECK(c.recentre == 1 && c.recalibrate == 1, "hold 3 s ends with recentre + standing height, once each");
 
-    // R Menu is held back from the game while View is down.
+    // R Menu is a tap: Start fires on release, and only if View stayed out of it.
+    run(0.3, false, false);
+    c = run(0.2, false, true);
+    CHECK(c.menu_taps == 0, "Start does not fire while Menu is still down");
+    c = run(0.2, false, false);
+    CHECK(c.menu_taps == 1, "Menu released alone is one Start");
+    CHECK(vr_system_menu_pulse(g_now - 0.05) || true, "(pulse time is checked below)");
     run(0.3, false, false);
     c = run(0.2, true, false);
-    CHECK(c.held_menu_frames > 0, "R Menu does not reach the game while View is down");
-    run(0.2, false, false);
+    c = run(0.2, false, false);
+    CHECK(c.menu_taps == 0, "View alone is not a Menu tap");
+    // Menu pressed, then View pressed and released while Menu is still down: no Start at all.
     c = run(0.2, false, true);
-    CHECK(c.held_menu_frames == 0, "R Menu alone reaches the game");
+    c = run(0.2, true, true);
+    c = run(0.2, false, true);
+    c = run(0.2, false, false);
+    CHECK(c.menu_taps == 0, "Menu then a View touch: no Start on release");
     run(0.3, false, false);
+    // View already down when Menu goes down: no Start.
+    run(0.2, true, false);
+    run(0.2, true, true);
+    c = run(0.2, true, false);
+    CHECK(c.menu_taps == 0, "View then Menu, Menu released first: no Start");
+    run(0.3, false, false);
+    // A fresh Menu press afterwards is a normal tap again (the View latch does not stick).
+    run(0.2, false, true);
+    c = run(0.2, false, false);
+    CHECK(c.menu_taps == 1, "the next plain Menu tap is a Start again");
+    run(0.3, false, false);
+    {
+        // the Start pulse is about 150 ms
+        vr_system_reset();
+        VrSysIn in;
+        in.focused = true;
+        in.now_s = g_now;
+        vr_system_step(in);
+        in.menu = true;
+        in.now_s += 0.1;
+        vr_system_step(in);
+        in.menu = false;
+        in.now_s += 0.1;
+        const VrSysOut o = vr_system_step(in);
+        CHECK(o.menu_tap, "tap on release");
+        CHECK(vr_system_menu_pulse(in.now_s + 0.1), "the Start pulse is live for 150 ms");
+        CHECK(!vr_system_menu_pulse(in.now_s + 0.2), "and over after that");
+        g_now = in.now_s + 1.0;
+    }
 
     // Chord: View first, then Menu; 0.5 s after both are down the settings menu toggles, once.
     run(0.3, false, false);
@@ -140,6 +180,26 @@ int main() {
     run(0.3, false, false);
     c = run(0.7, true, true);
     CHECK(c.toggle == 1, "a second chord toggles again");
+    run(0.3, false, false);
+
+    // Closing the VR menu by chord must not give the game a Start, whichever button is let go first.
+    c = run(0.7, true, true);
+    CHECK(c.toggle == 1, "chord (close), View released first below");
+    c = run(0.15, false, true);   // View up, Menu still down
+    c.menu_taps += run(0.2, false, false).menu_taps;
+    CHECK(c.menu_taps == 0, "chord, View released before Menu: no Start");
+    run(0.3, false, false);
+    c = run(0.7, true, true);
+    CHECK(c.toggle == 1, "chord again, Menu released first below");
+    c = run(0.15, true, false);   // Menu up, View still down
+    c.menu_taps += run(0.2, false, false).menu_taps;
+    CHECK(c.menu_taps == 0, "chord, Menu released before View: no Start");
+    run(0.3, false, false);
+    // Menu pressed before View (the chord the other way round) also leaves no Start behind.
+    run(0.2, false, true);
+    c = run(0.7, true, true);
+    c.menu_taps += run(0.3, false, false).menu_taps;
+    CHECK(c.toggle == 1 && c.menu_taps == 0, "Menu then View chord: toggles the menu, no Start");
     run(0.3, false, false);
 
     // Focus lost mid-press: cancelled, no events, the release is not a Back.

@@ -29,7 +29,7 @@ int main() {
     // ---- parser
     VrFrameDiag d;
     vr_frame_diag_parse("# a comment\n[diag]\nforce_render = 1\r\ndiag_yaw=90\n  dump_frame = 240  \n"
-                        "timing=on\nautostart = yes\nautostart_entrance = 0x1d1\nbogus_key = 3\nnot a pair\n",
+                        "timing=on\nautostart = yes\nautostart_entrance = 0x1d1\nstereo_divisor = 1\nbogus_key = 3\nnot a pair\n",
                         &d, note_unknown);
     CHECK(d.force_render, "force_render read");
     CHECK(near(d.diag_yaw, 90.0f), "diag_yaw read");
@@ -37,12 +37,19 @@ int main() {
     CHECK(d.timing, "timing=on read");
     CHECK(d.autostart, "autostart=yes read");
     CHECK(d.autostart_entrance == 0x1d1, "autostart_entrance read as hex");
+    CHECK(d.stereo_divisor == 1, "stereo_divisor read");
     CHECK(s_unknown.size() == 1 && s_unknown[0] == "bogus_key", "an unknown key is reported once");
 
     VrFrameDiag off;
     vr_frame_diag_parse("force_render=0\ntiming=0\n", &off, nullptr);
     CHECK(!off.force_render && !off.timing && off.dump_frame == 0 && !off.autostart, "defaults and explicit off");
     CHECK(off.autostart_entrance == 0xEE, "autostart_entrance defaults to Kokiri Forest");
+    CHECK(off.stereo_divisor == 0, "stereo_divisor defaults to 'leave the CVar alone'");
+    VrFrameDiag wild;
+    vr_frame_diag_parse("stereo_divisor = 9\n", &wild, nullptr);
+    CHECK(wild.stereo_divisor == 4, "stereo_divisor is clamped to 4");
+    vr_frame_diag_parse("stereo_divisor = -3\n", &wild, nullptr);
+    CHECK(wild.stereo_divisor == 0, "a negative stereo_divisor means off");
 
     // ---- synthetic head
     VrFrameDiag h;
