@@ -30,15 +30,27 @@
 #   --clear-dumps      remove ~/Documents/OoTVR/vr-dumps before the run
 #   --pull-dumps DIR   after the run (and --logcat), adb pull vr-dumps into DIR
 #                      (PNG copies are made with sips on a Mac)
+#   --release          release the shared Frame booking when the script ends (prints the lock's
+#                      NOTIFY line if someone is queued)
+#   --lock-minutes N   how long to book the Frame for (default 20)
+#   --force            go on although another Steam title or OpenXR app looks active on the Frame
 #   --no-adb           only SSH steps (--rom, --register-title, the title's APK copy, --diag,
 #                      --ssh-log); no Lepton Development container needed
 #
 # Environment:
 #   FRAME_HOST       ssh target (default steamos@192.168.1.31, the Frame on Wi-Fi;
 #                    over USB networking use steamos@10.86.200.233)
-#   FRAME_ADB_HOST   adb host (default: the host part of FRAME_HOST). Lepton
-#                    Development publishes its adbd on <host>:5555
+#   FRAME_ADB_HOST   adb target, host or host:port (default 192.168.1.31:5555: the Frame on Wi-Fi,
+#                    where Lepton Development publishes its adbd on port 5555). Over USB networking
+#                    set FRAME_HOST and this to the USB address
+#   FRAME_LOCK_SESSION  your session name in the shared Frame booking (default code-fe)
 #   ADB              adb binary
+#
+# The Frame is shared by several sessions and SteamVR runs one scene app at a time. Anything that
+# installs, launches, stops or registers an app, or drives an unattended run (--diag), books it first
+# with ~/.claude/skills/steam-frame-vr-port/scripts/frame-lock.sh and stops with the holder's status
+# if it is held. Read-only steps (--logcat or --pull-dumps on an existing run, --ssh-log) need no
+# booking. Use --release when you are done.
 #
 # adb needs "Lepton Development" running (start it from the Frame's Steam
 # library). It deletes its apps and their data when it exits; the persistent
@@ -58,7 +70,13 @@ title_apk="OoT-VR.apk"              # fixed name: the title's argv stays valid a
 data_dir="Documents/OoTVR"          # on the headset; /sdcard/Documents/OoTVR inside Lepton
 
 frame_host="${FRAME_HOST:-steamos@192.168.1.31}"
-adb_host="${FRAME_ADB_HOST:-${frame_host#*@}}"
+adb_target="${FRAME_ADB_HOST:-192.168.1.31:5555}"
+[[ "$adb_target" == *:* ]] || adb_target="$adb_target:5555"
+lock_sh="${FRAME_LOCK_SH:-$HOME/.claude/skills/steam-frame-vr-port/scripts/frame-lock.sh}"
+lock_session="${FRAME_LOCK_SESSION:-code-fe}"
+lock_minutes=20
+release=0
+force=0
 adb_bin="${ADB:-${ANDROID_HOME:-$HOME/Library/Android/sdk}/platform-tools/adb}"
 [[ -x "$adb_bin" ]] || adb_bin="$(command -v adb || true)"
 apk=""
@@ -92,6 +110,9 @@ while (($#)); do
         --autostart) diag+=("autostart=1"); shift ;;
         --clear-dumps) clear_dumps=1; shift ;;
         --pull-dumps) pull_dumps="$2"; shift 2 ;;
+        --release) release=1; shift ;;
+        --lock-minutes) lock_minutes="$2"; shift 2 ;;
+        --force) force=1; shift ;;
         --no-adb) use_adb=0; shift ;;
         -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d'; exit 0 ;;
         *) die "unknown option $1" ;;
@@ -104,6 +125,39 @@ if [[ -z "$apk" ]]; then
 fi
 
 ssh_frame() { ssh -o ConnectTimeout=10 -o BatchMode=yes "$frame_host" "$@"; }
+
+# ---- Shared booking of the Frame -------------------------------------------------
+if ((release)); then
+    trap '"$lock_sh" release "$lock_session" || true' EXIT
+fi
+
+claim_frame() {
+    [[ -x "$lock_sh" ]] || die "no frame-lock.sh at $lock_sh (set FRAME_LOCK_SH)"
+    if ! "$lock_sh" claim "$lock_session" "OoTVR: $1" "$lock_minutes"; then
+        die "the Frame is booked by someone else (status above); nothing was changed. Use --release when you are done, and queue with: $lock_sh queue $lock_session \"OoTVR: $1\""
+    fi
+}
+
+# Before a launch, even with the booking: nobody else's Steam title or OpenXR app should be running.
+check_frame_idle() {
+    local busy
+    busy="$(ssh_frame "pgrep -af 'lepton-steamlaunch' | grep -v pgrep; journalctl --user --since '-1 min' --no-pager -o cat 2>/dev/null | grep -c '\[openxr\]'" 2>/dev/null || true)"
+    if [[ -n "$busy" && "$busy" != "0" ]] && ((! force)); then
+        echo "$busy" >&2
+        die "something looks active on the Frame (a Steam title or recent [openxr] lines above/count). Ask who it is, or use --force"
+    fi
+}
+
+needs_lock=0
+if ((register || install || diag_reset || ${#diag[@]} > 0)) || ((launch && use_adb)); then needs_lock=1; fi
+if ((needs_lock)); then
+    purpose="deploy"
+    ((register)) && purpose="$purpose, register title"
+    ((install)) && purpose="$purpose, install"
+    ((launch && use_adb)) && purpose="$purpose, launch"
+    (( ${#diag[@]} > 0 || diag_reset )) && purpose="$purpose, diag run"
+    claim_frame "$purpose"
+fi
 
 # ---- ROM: persistent storage on the Frame host -------------------------------
 if [[ -n "$rom" ]]; then
@@ -175,16 +229,21 @@ fi
 
 # ---- Lepton Development over network adb --------------------------------------
 "$adb_bin" start-server >/dev/null
+# Wi-Fi adb: Lepton Development's adbd listens on <frame>:5555, so connect to it first.
 for attempt in 1 2 3 4 5; do
-    "$adb_bin" connect "$adb_host:5555" >/dev/null 2>&1 || true
-    if "$adb_bin" -s "$adb_host:5555" shell true 2>/dev/null; then break; fi
+    "$adb_bin" connect "$adb_target" >/dev/null 2>&1 || true
+    if "$adb_bin" -s "$adb_target" shell true 2>/dev/null; then break; fi
     sleep $((attempt * 2))
     if ((attempt == 5)); then
-        die 'cannot reach Lepton Development at '"$adb_host"':5555. Start "Lepton Development" from the Frame'"'"'s Steam library (check: ssh '"$frame_host"' pgrep -af lepton).'
+        die 'cannot reach Lepton Development at '"$adb_target"'. Start "Lepton Development" from the Frame'"'"'s Steam library (check: ssh '"$frame_host"' pgrep -af lepton).'
     fi
 done
-device="$adb_host:5555"
+device="$adb_target"
 adb() { "$adb_bin" -s "$device" "$@"; }
+
+if ((launch || install)); then
+    check_frame_idle
+fi
 
 if ((install)); then
     adb install -r -g "$apk" | grep -i -E 'success|fail|error' || true
