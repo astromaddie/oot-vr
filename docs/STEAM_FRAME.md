@@ -65,7 +65,7 @@ Things a clean checkout trips over, none of them Frame-specific:
   brew install ninja glew libzip nlohmann-json tinyxml2 opus opusfile sdl2_net sdl2   # whatever of these you lack
   cmake -S . -B /tmp/soh-host -G Ninja -DBUILD_REMOTE_CONTROL=1
   cmake --build /tmp/soh-host --target GenerateSohOtr
-  cp soh/soh.o2r Android/app/src/main/assets/soh.o2r      # then assembleFrame; check with unzip -l
+  cp soh/soh.o2r Android/app/src/main/assets/soh.o2r      # (the target also copies it to the repo root); then assembleFrame
   ```
 
   Without it the game starts with no HUD assets.
