@@ -200,7 +200,7 @@ being drawn. The laser (trigger = click, right stick = scroll) works as before. 
 | `force_render` | keeps VR on while the headset is "doffed", draws and submits while `shouldRender=false`, synthetic head 1.6 m up with eyes +-32 mm, runtime FOV (or the Frame's measured one if the runtime gives none), hands parked in front of the chest; the game keeps being stepped |
 | `diag_yaw` | the synthetic head's yaw in degrees, positive turns left |
 | `dump_frame` | from XR frame N, on the first frame that draws the eyes (a frame that does not keeps it armed): `vr-dumps/vr-eye0.bmp`, `vr-eye1.bmp` (both multiview layers), `vr-state.txt` (poses, FOV, format, IPD, refresh). One blocking readback, on that frame only |
-| `timing` | GPU time of the eye pass (`GL_EXT_disjoint_timer_query`, read late, never waited on) in `[vr-perf]` |
+| `timing` | 1: GPU time of the eye pass (`GL_EXT_disjoint_timer_query`, read late, never waited on) in `[vr-perf]`. 2: that plus the `[vr-wait]` lines (below). 3: `[vr-wait]` only, without the GPU timer queries (reading them may itself make the threaded driver sync) |
 | `autostart` | the title hands over to gameplay through the debug-save path, no controller, no save file touched |
 | `autostart_entrance` | the entrance for `autostart`, default `0x00EE` (Kokiri Forest) |
 | `stereo_divisor` | 1 to 4, overrides `gVrStereoDivisor` for the run (default stays 2) so 1 and 2 can be measured on a device |
@@ -208,7 +208,13 @@ being drawn. The laser (trigger = click, right stick = scroll) works as before. 
 `[vr-perf]` every 10 s (sfvr's formatter): `fps`, `missed` (a frame later than 1.5 display periods), `cpu`, then
 `tick`, `eyes`, `hud`, `other` in ms (CPU, `xrWaitFrame` excluded; `tick` is amortized over the XR frames because it
 runs once per game tick), `eye=` the multiview pass for both eyes, `gpu=` or `n/a`, then `wait`, `period`, `ticks`,
-`tick_max`, `eye_passes`, `eye_pass_mean`, `not_rendered`. Other markers: `[vr]`, `[vr-sys]`, `[vr-diag]`, `[vr-dump]`,
+`tick_max`, `eye_passes`, `eye_pass_mean`, `not_rendered`. `[vr-wait]` (`timing=2` or `3`, three lines next to each `[vr-perf]`, ms per frame averaged over all frames) says where the game
+thread waits: `stages` (wall / game-thread CPU / time inside timed GL and XR calls for each phase of the frame: eye pass
+begin, `Interpreter::Run`, end, HUD, `vr_end_frame`), `xr` (wall / thread CPU of each OpenXR call, calls and calls over 0.2 ms
+per frame, slowest call, swapchain acquire/release cycles per frame by kind) and `gl` (the GL backend by category: draw,
+vertex ring wait/copy, state, uniforms, shader switch/build, texture upload/state, framebuffer bind/clear/blit,
+flush/fence, glGet/readback, with the slowest category). Measures only; `libultraship/include/fast/vr_wait.h`.
+Other markers: `[vr]`, `[vr-sys]`, `[vr-diag]`, `[vr-dump]`,
 `[VR_CTRL]`, `setupFiles`, `[Setup]`.
 
 ## 7. Settings key map

@@ -34,7 +34,10 @@ int main() {
     CHECK(d.force_render, "force_render read");
     CHECK(near(d.diag_yaw, 90.0f), "diag_yaw read");
     CHECK(d.dump_frame == 240, "dump_frame read, spaces trimmed");
-    CHECK(d.timing, "timing=on read");
+    CHECK(d.timing == 1, "timing=on read as 1");
+    VrFrameDiag t2;
+    vr_frame_diag_parse("timing = 2\n", &t2, nullptr);
+    CHECK(t2.timing == 2, "timing=2 read as the detailed level");
     CHECK(d.autostart, "autostart=yes read");
     CHECK(d.autostart_entrance == 0x1d1, "autostart_entrance read as hex");
     CHECK(d.stereo_divisor == 1, "stereo_divisor read");

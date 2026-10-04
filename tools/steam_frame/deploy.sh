@@ -20,7 +20,8 @@
 #                      (~/Documents/OoTVR/logs/) over SSH; no adb needed
 #   --diag KEY=VAL     set a key in ~/Documents/OoTVR/vr-diag.ini (repeatable).
 #                      Keys: force_render, diag_yaw (deg), dump_frame (XR frame number),
-#                      timing, autostart, autostart_entrance (e.g. 0x00EE).
+#                      timing (1 GPU time, 2 + [vr-wait] wait breakdown, 3 [vr-wait] only),
+#                      autostart, autostart_entrance (e.g. 0x00EE).
 #                      --diag-reset deletes the file.
 #   --force-render     shorthand for --diag force_render=1 (draw and submit frames
 #                      although the runtime says shouldRender=false: the headset on
