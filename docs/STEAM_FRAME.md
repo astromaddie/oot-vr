@@ -173,6 +173,7 @@ Use `deploy.sh --ssh-log 80` to read the same lines from the game's own log file
 | `force_render` steps the game with the headset off; `autostart` warps into Kokiri Forest (scene 0x55, entrance 0xEE) with no controller; dumps at yaw 0 and 90 show a world-locked stereo view with the expected disparity (near hands shift more than the village) | unattended device (`scratchpad/dumps/`, not committed) |
 | Kokiri Forest, divisor 2 (default): 72.0 fps, 0 missed per 10 s, CPU 10.8-11.3 ms, GPU 3.6-4.1 ms | unattended device (`[vr-perf]`) |
 | Kokiri Forest, divisor 1 (both eyes every frame): 72.0 fps, 0-1 missed per 10 s, CPU 12.8 ms of the 13.9 ms period, GPU 2.5 ms. CPU-bound with about 1 ms to spare; heavier scenes are untested | unattended device (`[vr-perf]`) |
+| Kokiri Forest at **90 Hz**, divisor 1: 90.0 fps, 0 missed per 10 s, with or without `[vr-wait]`. `[vr-wait]` shows ~2.9 ms of game-thread CPU a frame; ~6 ms of the "eyes" stage is `xrAcquireSwapchainImage` blocking for a free image (pacing, not work). The earlier "CPU-bound at 72 Hz" reading was that wait | unattended device (`[vr-perf]`, `[vr-wait]`, 2026-10-04) |
 | The persistent `OoTVR` devkit title is registered and holds the APK | unattended device (registered, **not launched from Steam yet**) |
 | Frame controller profile accepted by SteamVR; button layout as bound here | **not run** (needs a Steam launch); the paths are the ones GoldenEye, Halo and F-Zero bind, which have been worn |
 | System layer, recentre, VR settings chord, in-headset menu pad input, Quit from SteamVR | **not run** |
@@ -184,7 +185,7 @@ missing launcher icon, with or without these changes (see above). The native par
 ## Open problems / next
 
 - First wear (phase 3): launch **OoTVR** from the Steam library and run the checklist in VR_ARCHITECTURE.md section 9.
-- Decide the stereo divisor for the Frame: 2 (Quest default, 36 Hz eye updates) or 1 (72 Hz, CPU-bound with ~1 ms spare in Kokiri Forest). Measure Hyrule Field and Kakariko before changing the default.
+- The Frame build now defaults to stereo divisor 1 (both eyes every frame). Measure Hyrule Field and Kakariko at 90 Hz with `--diag timing=3` and check `[vr-wait]` before trusting it everywhere.
 - The OpenXR init lines (runtime name, profile suggestions, swapchain) do not reach the log file; only the session-state lines do. Log them after the logger is up.
 - `soh.o2r` has to be generated and dropped in before `assembleFrame` (see Build); it is not wired into Gradle.
 - The world is redrawn every second XR frame by default (`gVrStereoDivisor` = 2), so 36 Hz of new eye images at 72 Hz,

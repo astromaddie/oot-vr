@@ -1521,10 +1521,14 @@ void SohMenu::AddMenuVRSettings() {
         .Options(IntSliderOptions()
                      .Min(1)
                      .Max(4)
+#ifdef SOH_STEAM_FRAME
+                     .DefaultValue(1)
+#else
                      .DefaultValue(2)
+#endif
                      .Format("%d")
                      .Tooltip("How often the 3D world is redrawn. 1 = every headset frame (fully "
-                              "smooth animation). 2 (default) = every other frame; the headset "
+                              "smooth animation). 2 = every other frame; the headset "
                               "shifts the last image to follow your head in between, so head "
                               "tracking stays smooth and the game does about half the drawing "
                               "work. Use 1 if the areas you play hold their frame rate."));
