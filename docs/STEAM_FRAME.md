@@ -154,7 +154,7 @@ Not in the menu: `gVrCinemaConvergence` (150 game units, the distance that sits 
 A headset on a desk reports `shouldRender=false`. By default the Frame build ends that frame empty at once.
 Frame-only switches live in `~/Documents/OoTVR/vr-diag.ini` (`deploy.sh --diag KEY=VAL`; the architecture doc lists
 them with their effects): `force_render`, `diag_yaw`, `diag_roll`, `dump_frame`, `dump_at`, `dump_when`, `dump_count`,
-`dump_every`, `timing`, `autostart`, `autostart_entrance`, `autostart_slot`, `autostart_new_game`, `diag_pause_at`,
+`dump_every`, `diag_menu_open`, `timing`, `autostart`, `autostart_entrance`, `autostart_slot`, `autostart_new_game`, `diag_pause_at`,
 `stereo_divisor` (1 to 4, overrides `gVrStereoDivisor` for the run, to measure 1 against 2).
 With `force_render` the game draws and submits from a synthetic head at 1.6 m (eyes +-32 mm) with the hands parked,
 and keeps being stepped. `autostart` skips the title and file select through the game's debug-save path (no save
@@ -188,6 +188,10 @@ tools/steam_frame/deploy.sh --diag force_render=1 --diag autostart_slot=1 --diag
 #    says space=local and quat=0,0,0,1 (level), and vr-hud.bmp is upright
 tools/steam_frame/deploy.sh --diag force_render=1 --diag autostart_slot=1 --diag diag_roll=30 \
     --diag dump_at=12 --diag dump_when=immersive --logcat 60 --pull-dumps scratchpad/dumps/roll
+# 6. The laser pointer on top: vr-menu.bmp shows the menu with the cursor, vr-state.txt ends layers= with
+#    "pointer-beam pointer-dot" and a "pointer hand=1 hit=1" line
+tools/steam_frame/deploy.sh --diag force_render=1 --diag autostart_slot=1 --diag diag_menu_open=1 \
+    --diag dump_at=5 --logcat 60 --pull-dumps scratchpad/dumps/pointer
 ```
 
 `--logcat 90` captures the run to `scratchpad/frame-logcat.txt` (git-ignored). Evidence lines to look for:

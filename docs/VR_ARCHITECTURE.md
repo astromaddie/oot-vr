@@ -106,7 +106,10 @@ Back to front:
    but not roll on the Frame, or pinned to a hand by setting). In cinema the HUD and text are drawn into the picture.
 3. On the Frame without `XR_KHR_composition_layer_color_scale_bias`: a black head-locked fade quad.
 4. The **settings menu** (ImGui on a 1280x960 quad, 1.6 m wide at 1.3 m, placed in front of the gaze when it opens,
-   alpha-blended, on top).
+   alpha-blended).
+5. Frame, while the settings menu is open: the **laser pointer**, two quads from one 32x32 disc texture: a 4 mm beam
+   from the aim pose to the hit point (1 m when it misses), turned about its own axis to face the head, and a 2 cm dot
+   on the hit point. Last, so it is on top of every other layer (standard section 3).
 
 `XR_KHR_composition_layer_color_scale_bias` carries the scene-transition fade, the in-wall darkening and (Frame) the
 presentation fade: every change between immersive, 3D cinema, flat cinema and the flat panel cuts to black, holds
@@ -223,6 +226,7 @@ being drawn. The laser (trigger = click, right stick = scroll) works as before. 
 | `dump_at` | seconds after gameplay starts (the first presentation request) before a dump may fire; combines with `dump_frame` |
 | `dump_when` | `any` (default), `immersive`, `cinema`, `cinema3d`, `flat_cinema`, `panel`: the dump waits for that presentation |
 | `dump_count`, `dump_every` | a series of dumps, `dump_every` XR frames apart (default 90); files 2.. get `-2`, `-3`, ... |
+| `diag_menu_open` | opens the VR settings menu 2 s into gameplay; with `force_render` the parked right hand points straight ahead at it (keep `diag_yaw` 0), so a dump shows the pointer (`vr-menu.bmp`, and `pointer-beam pointer-dot` last in `layers=` with the beam pose) |
 
 A dump writes what that frame drew: `vr-eye0.bmp`/`vr-eye1.bmp` (eye pass), `vr-panel.bmp` (flat panel), `vr-hud.bmp`
 (HUD quad), and `vr-state.txt` with the poses, the presentation, the layers submitted, the cinema screen pose and both
@@ -320,6 +324,13 @@ and host tests only); section 6 and STEAM_FRAME.md list the unattended runs that
 | 3 | Cutscenes are the 6DoF world: culled scenery behind you, the view snap-turns in ~30 degree steps | The VR view was always the head in the world; in a cutscene far from Link it rode the director camera (`z_play.c`, third-person branch), whose yaw was swept over one 20 Hz tick when the shot changed (`vr_set_camera_yaw`, snap only above 90 degrees): every cut became a 50 ms whip of the world | **3D cinema** (default, `gVrCutsceneMode` 0): the game's own camera (`z_camera.c` keeps its View, the interpreter keeps its projection) split per eye by `vr_cinema_eye_matrix` (two parallel off-axis cameras converged at 150 units; disparity at infinity = 0.55 x IPD on the screen), drawn into a 16:9 band and submitted as a projection layer whose views have the screen's orientation, the live eye positions and the FOV of the screen corners (`vr_cinema_eye_view`, lesson 45). Screen 3.6 m wide, 3 m ahead, yaw-anchored where the head faced at the start, re-placed on recentre. Text and HUD go into the picture. Detection: `csCtx.state`, `Player_InCsMode` with a non-main or cutscene camera (only after 6 ticks, so a chest or door camera does not cost two fades), entrance cutscenes, the title demo; out after 4 calm ticks; reset with each new PlayState; one log line with every condition on each change. **Immersive** (1): unchanged, except that a yaw change of more than 20 degrees in one tick during a cutscene is shown as a cut (`[vr-cam]` lines) |
 | 4 | Pause: the world collapses into a flat box with wrong parallax and distorted edges | During pause the eye images were not redrawn; the last stereo frame was resubmitted with its old pose behind the panel (`vr_end_frame`), and the compositor showed it as a window whose edges differ per eye. The pause screen's own backdrop capture (`FB_CopyToFramebuffer` from "fb 0") was black in VR (`Interpreter::CopyFrameBuffer`) | The panel stands alone (no projection layer while it is up). The frame the game captures is drawn into the panel with the game's own camera (`Camera_Update` does not run while paused, so `z_camera.c` keeps the active camera's own view each tick and `Play_Draw` puts it back while paused) and copied from the panel image (`vr_copy_screen_to_framebuffer`, `CopyExternalTargetTo`), so the kaleido pages sit on the frozen world, mono, world-locked. **3D pause (kaleido as stereo geometry): not done.** Its pages are drawn with their own perspective and the inventory cursor and item models with others; making that world-locked stereo is a renderer project of its own, not cheap or robust. No PAUSE setting was added |
 | 5 | Dialogue text and the HUD rotate with head roll | The HUD quad was a VIEW-space quad at identity: fully head-locked, roll included | The head-locked HUD is placed each frame in LOCAL space from the head pose with the roll removed (`vr_present_head_locked`: yaw, then pitch, of the gaze). Checked the other head-relative layers: the flat panel, the settings menu and the cinema screen are yaw-only and world-locked; the hand HUD follows the hand by design; the fade quad is uniform black |
+
+Two more rules from the same day (standard sections 3 and 4), also headset-unverified:
+
+| # | Rule | Before | Now |
+| --- | --- | --- | --- |
+| 6 | The laser pointer is always on top | No beam at all: the only pointer was ImGui's mouse cursor drawn inside the settings menu's own image. The flat panel (pause, file select) has no pointer: the game's 2D menus take the pad only | Beam and dot as the last two layers (`vr_frame_pointer_layers`), over the menu, panel, cinema, HUD and world. `diag_menu_open` + a dump checks it. The flat panel still has no pointer (nothing there takes one) |
+| 7 | Reticles and billboards never roll | Billboards (sprites, Navi, the in-world lock-on reticle and arrow, all from `play->billboardMtxF`) faced the game View, which in VR was the head pose with its up vector: they rolled with the head | In VR the game View's up is the world-up vector nearest the head's (`z_camera.c`); the eyes still render from the true head pose, so only what faces the camera changes. The hookshot reticle sits on the surface normal and was already roll-free; there is no head-locked crosshair |
 
 Also: dumps now cover the flat panel and the HUD (`vr-panel.bmp`, `vr-hud.bmp`) and record the layers, so a pause or a
 cinema frame can be dumped (`dump_when`), and a series can be taken through a cutscene (`dump_count`, `dump_every`).
