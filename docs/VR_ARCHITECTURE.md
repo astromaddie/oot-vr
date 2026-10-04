@@ -4,8 +4,9 @@ Current state, not a log. Build and deploy steps are in [STEAM_FRAME.md](STEAM_F
 port is described in [../QUEST.md](../QUEST.md) and [../CHANGES.md](../CHANGES.md). The conventions are the Steam
 Frame port standard (`standard.md`) and the shared `sfvr` library.
 
-First unattended device run: 2026-10-04. Nothing has been worn yet. The status table at the end uses three states: **played in headset**,
-**verified unattended** (a headset on a desk, force-render, logcat, dumps) and **not started / not run**.
+First unattended device run: 2026-10-04. First worn the same day; the fixes for that wear (section 10) are
+headset-unverified. The status table uses three states: **played in headset**, **verified unattended** (a headset on a
+desk, force-render, logcat, dumps) and **not started / not run**.
 
 ## 1. Target
 
@@ -93,12 +94,23 @@ game per XR frame.
 
 ### Layers submitted
 
-Back to front: the projection layer (the multiview image, one array layer per eye, raw physical head pose and the FOV it
-was drawn with), then either the **flat panel** (a world-locked 1280x960 quad, 2.4 m wide at 2.2 m, for 2D contexts:
-file select, pause; the eye image keeps its last world frame behind it) or the **HUD quad** (1024x768, head-locked at 2 m,
-or pinned to a hand by setting), then the **settings menu** (ImGui on a 1280x960 quad, 1.6 m wide at 1.3 m, placed in
-front of the gaze when it opens, alpha-blended, on top). `XR_KHR_composition_layer_color_scale_bias` is used for the
-scene-transition fade and the in-wall darkening when advertised. Not submitted: depth.
+Back to front:
+
+1. The projection layer. Immersive: the multiview image, one array layer per eye, raw physical head pose and the FOV it
+   was drawn with. **3D cinema** (Frame): the same swapchain, but each eye's image holds the game camera's picture in a
+   16:9 (4:3 for pre-rendered rooms) band of rows, and each view's pose is (screen orientation, live eye position) with
+   the FOV that exactly covers the cinema screen rectangle from that eye (`vr_cinema_eye_view`). Black elsewhere.
+   **Not submitted while the flat panel is up** (Frame): the stale stereo frame behind the panel was the "distorted box".
+2. Either the **flat panel** (a world-locked 1280x960 quad, 2.4 m wide at 2.2 m, for 2D contexts: file select, pause; it
+   carries its own frozen world, see section 10) or the **HUD quad** (1024x768, 2 m ahead, following head yaw and pitch
+   but not roll on the Frame, or pinned to a hand by setting). In cinema the HUD and text are drawn into the picture.
+3. On the Frame without `XR_KHR_composition_layer_color_scale_bias`: a black head-locked fade quad.
+4. The **settings menu** (ImGui on a 1280x960 quad, 1.6 m wide at 1.3 m, placed in front of the gaze when it opens,
+   alpha-blended, on top).
+
+`XR_KHR_composition_layer_color_scale_bias` carries the scene-transition fade, the in-wall darkening and (Frame) the
+presentation fade: every change between immersive, 3D cinema, flat cinema and the flat panel cuts to black, holds
+0.25 s and fades in over 0.35 s (`vr_present_fade_black`). Not submitted: depth.
 
 ## 3. Quest to Frame
 
@@ -204,6 +216,23 @@ being drawn. The laser (trigger = click, right stick = scroll) works as before. 
 | `autostart` | the title hands over to gameplay through the debug-save path, no controller, no save file touched |
 | `autostart_entrance` | the entrance for `autostart`, default `0x00EE` (Kokiri Forest) |
 | `stereo_divisor` | 1 to 4, overrides `gVrStereoDivisor` for the run (default stays 2) so 1 and 2 can be measured on a device |
+| `autostart_slot` | 1 to 3: `autostart` loads that save file the way the file select does (falls back to the debug save if it does not exist). The user's slot 1 is in Kokiri Forest |
+| `autostart_new_game` | `autostart` starts a fresh file in memory only (file 0xFF, never saved): entrance `0x00BB` with cutscene `0xFFF1`, i.e. the new-game intro (Deku Tree and Navi, the flight through the forest, Link's house). The Skip Intro time saver and rando skip it (logged) |
+| `diag_pause_at` | seconds after gameplay starts: presses Start once (through the game's emulated-button hook), when no cutscene or transition runs |
+| `diag_roll` | the synthetic head's roll in degrees (positive tilts the head left); the HUD must stay level |
+| `dump_at` | seconds after gameplay starts (the first presentation request) before a dump may fire; combines with `dump_frame` |
+| `dump_when` | `any` (default), `immersive`, `cinema`, `cinema3d`, `flat_cinema`, `panel`: the dump waits for that presentation |
+| `dump_count`, `dump_every` | a series of dumps, `dump_every` XR frames apart (default 90); files 2.. get `-2`, `-3`, ... |
+
+A dump writes what that frame drew: `vr-eye0.bmp`/`vr-eye1.bmp` (eye pass), `vr-panel.bmp` (flat panel), `vr-hud.bmp`
+(HUD quad), and `vr-state.txt` with the poses, the presentation, the layers submitted, the cinema screen pose and both
+cinema views (pose + FOV), and the HUD quad's pose. Cinema eye dumps hold the picture as a band across the square image;
+view them cropped to the band (`band_y`, `band_h` in `vr-state.txt`), as seen on the 16:9 screen (lesson 50).
+
+Entrances for `autostart_entrance`: `0x00EE` Kokiri Forest (default), `0x0209` Kokiri Forest outside the Deku Tree
+(the meadow), `0x0211` Kokiri Forest outside Link's house, `0x00BB` Link's house (child spawn; pre-rendered), `0x05E8`
+Kokiri Forest spawn 12 (the Deku sprout cutscene). The debug save is adult Link (`linkAge` 0), so child-only scenes
+and layers need `autostart_slot` or `autostart_new_game`.
 
 `[vr-perf]` every 10 s (sfvr's formatter): `fps`, `missed` (a frame later than 1.5 display periods), `cpu`, then
 `tick`, `eyes`, `hud`, `other` in ms (CPU, `xrWaitFrame` excluded; `tick` is amortized over the XR frames because it
@@ -231,6 +260,9 @@ not listed.
 | `hud_distance` | `gVrHudDistance` | |
 | `height` / `world_scale` | `gVrAutoWorldScale`, `gVrWorldScale` | |
 | `force_render`, `diag_yaw`, `dump_frame`, `timing` | `vr-diag.ini` | not CVars |
+| `cutscenes` (`3D CINEMA` / `IMMERSIVE`) | `gVrCutsceneMode` | Frame: 0 = 3D cinema (default), 1 = immersive |
+| (pre-rendered rooms on the cinema) | `gVrPrerenderCinema` | Frame, default on |
+| (cinema depth, size, distance) | `gVrCinemaDepth`, `gVrCinemaWidth`, `gVrCinemaDistance`, `gVrCinemaConvergence` | 0.55, 3.6 m, 3.0 m, 150 game units (the zero-parallax distance; menu-less) |
 
 ## 8. Status
 
@@ -248,6 +280,9 @@ not listed.
 | Worn: scale, comfort, HUD, controls | not started |
 | `soh.o2r` bundled in the APK | done by hand (host-built, gitignored); not wired into Gradle |
 | Pause game and audio on focus loss, depth submission, foveation, Frame render models | not started |
+| First-wear fixes (section 10): pre-rendered rooms on the cinema, 3D cinema cutscenes, pause panel alone with its own backdrop, roll-free HUD, mode fade, cinema decision log, new diag keys | host build, host tests (cinema views, stereo split, roll-free HUD, fade, decision, diag parser); **headset-unverified** |
+| Missing sky in the intro, immersive mode | not explained; `[vr-sky]` log added |
+| 3D pause screen | not started (section 10) |
 
 ## 9. First-wear checklist (about 15 minutes)
 
@@ -263,10 +298,28 @@ after an install may show loading dots for a few seconds.
 5. Tap R Menu: the pause screen opens; tap again to close. Short View in the pause screen goes back.
 6. Hold View 1 s: recentre with a buzz on both hands. Hold View, then press Menu, for the VR settings.
    Can you move around that menu with the controller?
-7. Enter Link's house or the shop: those rooms are flat backdrops in the original (green here without
-   Djipi's 3DS pack).
-8. Watch the opening Deku Tree cutscene, if you get that far: does the camera behave?
+7. Enter Link's house or the shop: the original backdrop on the cinema screen, with a fade in and out (with Djipi's
+   3DS pack: the pack's 3D room, 6DoF).
+8. Watch the opening Deku Tree cutscene: a 3D screen in front of you, the sky behind the tree, no turning of the world.
+   Try VR Settings > HUD & Menus > Cutscenes = Immersive too.
 9. Quit from the SteamVR menu. Did it close cleanly? Relaunch: does the save load?
 
 Report anything that felt wrong, plus which stereo mode felt smoother if you try both
 (VR Settings > Performance > Stereo Render Divisor, 1 vs 2).
+
+## 10. First wear (2026-10-04)
+
+The user wore the Frame build for the first time. Five reports, worst first. Every fix is Frame-only
+(`SOH_STEAM_FRAME`, or a setting the Quest build never reads). **Status of all five: headset-unverified** (host build
+and host tests only); section 6 and STEAM_FRAME.md list the unattended runs that check each one.
+
+| # | Report | Root cause | Fix |
+| --- | --- | --- | --- |
+| 1 | Link's house (and the shops, Market, Temple of Time) are pure green flat-shaded polygons | Two SoH enhancements that default on, "Disable 2D Pre-Rendered Scenes" (`Graphics/Disable2DBackgrounds.cpp`: `VB_DRAW_2D_BACKGROUND` forced false, the pre-rendered skybox swapped for the normal sky) and "Disable Fixed Camera" (`Graphics/DisableFixedCamera.cpp`). They exist for a mod that rebuilds these rooms in 3D. Without one, only the room's own polygon list is left: on the N64 it is drawn first and then covered by the 2D backdrop (`z_room.c`, `func_80096680`), it only gives the actors depth | `VrPresentation.cpp`: in VR, a pre-rendered scene (an explicit list: Market, back alley, Temple of Time exterior, the houses, shops, stable, tent, huts, shooting gallery) whose room files no mod provides (archive of `roomList[i].fileName`, `alt/` included) keeps its backdrops and fixed/pivot cameras: both enhancements stand down for it. A tick in such a room (camera `PREREND_FIXED`/`PREREND_PIVOT` or mesh type 1) is shown as **flat cinema**: the game's own frame on the cinema screen, 4:3, one image for both eyes, with the fade. A scene a mod replaces (Djipi's 3DS pack) stays 6DoF and the enhancements work as before. Logged: `[vr] scene 0x..: room files from the game / replaced by a mod (...)`. Setting `gVrPrerenderCinema` |
+| 2 | No sky in the Deku Tree / Navi intro cutscene | Not found on the host (no ROM or scene data here). Ruled out: depth (the sky's render mode neither tests nor writes Z), the VR far plane (30000 covers the 100x box). In 3D cinema the sky is drawn by the game's own path, but the 100x scale would have put it beyond the game's far plane | Cinema: `VrFrame_SkyboxScale` fits the box inside the game's `zFar` (about 49x at 12800), so stereo still reads it as far away. Both modes: a `[vr-sky]` line on every change of scene, layer, `skyboxId`, `skyboxDisabled`, `unk_140`, `fogNear` (the full-screen fog filter becomes opaque below 950), `bgCoverAlpha`, cutscene and presentation. `autostart_new_game` plays the intro unattended. **Immersive is unchanged and unexplained** until that log is read |
+| 3 | Cutscenes are the 6DoF world: culled scenery behind you, the view snap-turns in ~30 degree steps | The VR view was always the head in the world; in a cutscene far from Link it rode the director camera (`z_play.c`, third-person branch), whose yaw was swept over one 20 Hz tick when the shot changed (`vr_set_camera_yaw`, snap only above 90 degrees): every cut became a 50 ms whip of the world | **3D cinema** (default, `gVrCutsceneMode` 0): the game's own camera (`z_camera.c` keeps its View, the interpreter keeps its projection) split per eye by `vr_cinema_eye_matrix` (two parallel off-axis cameras converged at 150 units; disparity at infinity = 0.55 x IPD on the screen), drawn into a 16:9 band and submitted as a projection layer whose views have the screen's orientation, the live eye positions and the FOV of the screen corners (`vr_cinema_eye_view`, lesson 45). Screen 3.6 m wide, 3 m ahead, yaw-anchored where the head faced at the start, re-placed on recentre. Text and HUD go into the picture. Detection: `csCtx.state`, `Player_InCsMode` with a non-main or cutscene camera (only after 6 ticks, so a chest or door camera does not cost two fades), entrance cutscenes, the title demo; out after 4 calm ticks; reset with each new PlayState; one log line with every condition on each change. **Immersive** (1): unchanged, except that a yaw change of more than 20 degrees in one tick during a cutscene is shown as a cut (`[vr-cam]` lines) |
+| 4 | Pause: the world collapses into a flat box with wrong parallax and distorted edges | During pause the eye images were not redrawn; the last stereo frame was resubmitted with its old pose behind the panel (`vr_end_frame`), and the compositor showed it as a window whose edges differ per eye. The pause screen's own backdrop capture (`FB_CopyToFramebuffer` from "fb 0") was black in VR (`Interpreter::CopyFrameBuffer`) | The panel stands alone (no projection layer while it is up). The frame the game captures is drawn into the panel with the game's own camera (`Camera_Update` does not run while paused, so `z_camera.c` keeps the active camera's own view each tick and `Play_Draw` puts it back while paused) and copied from the panel image (`vr_copy_screen_to_framebuffer`, `CopyExternalTargetTo`), so the kaleido pages sit on the frozen world, mono, world-locked. **3D pause (kaleido as stereo geometry): not done.** Its pages are drawn with their own perspective and the inventory cursor and item models with others; making that world-locked stereo is a renderer project of its own, not cheap or robust. No PAUSE setting was added |
+| 5 | Dialogue text and the HUD rotate with head roll | The HUD quad was a VIEW-space quad at identity: fully head-locked, roll included | The head-locked HUD is placed each frame in LOCAL space from the head pose with the roll removed (`vr_present_head_locked`: yaw, then pitch, of the gaze). Checked the other head-relative layers: the flat panel, the settings menu and the cinema screen are yaw-only and world-locked; the hand HUD follows the hand by design; the fade quad is uniform black |
+
+Also: dumps now cover the flat panel and the HUD (`vr-panel.bmp`, `vr-hud.bmp`) and record the layers, so a pause or a
+cinema frame can be dumped (`dump_when`), and a series can be taken through a cutscene (`dump_count`, `dump_every`).

@@ -21,7 +21,10 @@
 #   --diag KEY=VAL     set a key in ~/Documents/OoTVR/vr-diag.ini (repeatable).
 #                      Keys: force_render, diag_yaw (deg), dump_frame (XR frame number),
 #                      timing (1 GPU time, 2 + [vr-wait] wait breakdown, 3 [vr-wait] only),
-#                      autostart, autostart_entrance (e.g. 0x00EE).
+#                      autostart, autostart_entrance (e.g. 0x00EE), autostart_slot (1..3),
+#                      autostart_new_game (the intro), diag_pause_at (s), diag_roll (deg),
+#                      dump_at (s), dump_when (any|immersive|cinema|cinema3d|flat_cinema|panel),
+#                      dump_count, dump_every (XR frames), stereo_divisor. See docs/STEAM_FRAME.md.
 #                      --diag-reset deletes the file.
 #   --force-render     shorthand for --diag force_render=1 (draw and submit frames
 #                      although the runtime says shouldRender=false: the headset on

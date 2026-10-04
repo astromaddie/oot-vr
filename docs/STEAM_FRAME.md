@@ -27,6 +27,11 @@ and passes `-DSOH_STEAM_FRAME=ON` to CMake (a C/C++ define of the same name).
 | System buttons | left menu button opens the VR settings | R Menu = Start, L View = back / recentre, Menu + View = VR settings. See the table below |
 | In-headset menu input | laser pointer | laser pointer plus the XR pad as the only gamepad writer for ImGui (see VR_ARCHITECTURE.md) |
 | Diagnostics | none | `vr-diag.ini`, `[vr-perf]`, eye dumps, logcat sink |
+| Cutscenes | the 6DoF world (immersive) | **3D cinema** by default: the game's own camera on a world-locked 3.6 m screen 3 m ahead, in stereo; VR Settings > HUD & Menus > Cutscenes = Immersive keeps the old way |
+| Pre-rendered rooms (Link's house, shops, Market, Temple of Time) | the bare depth mesh (green) | the original backdrop and camera on the cinema screen, one image for both eyes, unless a mod replaces the scene's rooms (Djipi's 3DS pack): then 6DoF as before |
+| Pause | the panel with the last stereo frame behind it | the panel alone, with its own frozen world as the pause backdrop |
+| HUD, text | head-locked (rolls with the head) | follows head yaw and pitch, never roll |
+| Mode changes | none | 0.25 s black, 0.35 s fade-in on every immersive / cinema / panel change |
 | Quit | n/a | SteamVR's menu ends the app: the activity is finished when the session goes EXITING |
 
 ## Build on a Mac (Apple Silicon)
@@ -131,11 +136,25 @@ hand owns, not a system one.
 On a Touch or Index controller in the Frame build the Quest behaviour is as before (left menu button opens the
 settings; Index has no menu button, so Y pauses).
 
+## Settings added for the Frame
+
+VR Settings > HUD & Menus:
+
+| Setting | CVar | Default | What |
+| --- | --- | --- | --- |
+| Cutscenes | `gVrCutsceneMode` | 3D Cinema (0) | 3D Cinema or Immersive (1, the old 6DoF way; camera cuts are now shown as cuts there) |
+| Pre-Rendered Rooms On The Cinema Screen | `gVrPrerenderCinema` | on | off = the old green 3D view in rooms no mod replaces |
+| Cinema 3D Depth | `gVrCinemaDepth` | 0.55 | 0 flat, 1 = far distance at infinity |
+| Cinema Screen Width / Distance | `gVrCinemaWidth`, `gVrCinemaDistance` | 3.6 m / 3.0 m | |
+
+Not in the menu: `gVrCinemaConvergence` (150 game units, the distance that sits on the screen plane).
+
 ## Unattended testing (nothing worn)
 
 A headset on a desk reports `shouldRender=false`. By default the Frame build ends that frame empty at once.
 Frame-only switches live in `~/Documents/OoTVR/vr-diag.ini` (`deploy.sh --diag KEY=VAL`; the architecture doc lists
-them with their effects): `force_render`, `diag_yaw`, `dump_frame`, `timing`, `autostart`, `autostart_entrance`,
+them with their effects): `force_render`, `diag_yaw`, `diag_roll`, `dump_frame`, `dump_at`, `dump_when`, `dump_count`,
+`dump_every`, `timing`, `autostart`, `autostart_entrance`, `autostart_slot`, `autostart_new_game`, `diag_pause_at`,
 `stereo_divisor` (1 to 4, overrides `gVrStereoDivisor` for the run, to measure 1 against 2).
 With `force_render` the game draws and submits from a synthetic head at 1.6 m (eyes +-32 mm) with the hands parked,
 and keeps being stepped. `autostart` skips the title and file select through the game's debug-save path (no save
@@ -146,6 +165,29 @@ Remove the file (`--diag-reset`) before playing.
 tools/steam_frame/deploy.sh --clear-dumps --diag force_render=1 --diag autostart=1 --diag dump_frame=600 \
     --diag diag_yaw=0 --logcat 90 --pull-dumps scratchpad/dumps/yaw0
 tools/steam_frame/tests/run_tests.sh      # host tests: bindings, system layer, diag parser, [vr-perf] format
+```
+
+First-wear checks (each its own run; `--clear-dumps` first; seconds count from the first gameplay tick):
+
+```bash
+# 1. Link's house the original way (flat cinema): vr-eye0/1 show the same 4:3 backdrop band, vr-state.txt
+#    presentation=flat cinema, layers=cinema-projection; log "[vr] scene 0x34: room files from the game"
+tools/steam_frame/deploy.sh --diag force_render=1 --diag autostart=1 --diag autostart_entrance=0x00BB \
+    --diag dump_at=15 --diag dump_when=flat_cinema --logcat 60 --pull-dumps scratchpad/dumps/house
+# 2+3. The new-game intro in 3D cinema (Deku Tree and Navi): a series of six dumps 2 s apart; each eye shows the
+#    16:9 band with the sky; the two eyes differ by a small horizontal shift; "[vr] cinema on: 3D cinema (cutscene)"
+#    and "[vr-sky]" lines in the log
+tools/steam_frame/deploy.sh --diag force_render=1 --diag autostart_new_game=1 --diag dump_at=8 \
+    --diag dump_when=cinema3d --diag dump_count=6 --diag dump_every=180 --logcat 120 --pull-dumps scratchpad/dumps/intro
+#    the same with VR Settings > Cutscenes = Immersive (shipofharkinian.json "gVrCutsceneMode": 1) and dump_when=immersive
+# 4. Pause from the user's save: vr-panel.bmp shows the pause screen over the frozen world; vr-state.txt has no
+#    "projection" in layers=, only panel
+tools/steam_frame/deploy.sh --diag force_render=1 --diag autostart_slot=1 --diag diag_pause_at=12 \
+    --diag dump_at=16 --diag dump_when=panel --logcat 60 --pull-dumps scratchpad/dumps/pause
+# 5. HUD with a rolled head: head_quat in vr-state.txt shows the 30 degree roll (0,0,0.259,0.966), the "hud" line
+#    says space=local and quat=0,0,0,1 (level), and vr-hud.bmp is upright
+tools/steam_frame/deploy.sh --diag force_render=1 --diag autostart_slot=1 --diag diag_roll=30 \
+    --diag dump_at=12 --diag dump_when=immersive --logcat 60 --pull-dumps scratchpad/dumps/roll
 ```
 
 `--logcat 90` captures the run to `scratchpad/frame-logcat.txt` (git-ignored). Evidence lines to look for:
