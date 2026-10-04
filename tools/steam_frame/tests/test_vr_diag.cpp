@@ -54,6 +54,23 @@ int main() {
     vr_frame_diag_parse("stereo_divisor = -3\n", &wild, nullptr);
     CHECK(wild.stereo_divisor == 0, "a negative stereo_divisor means off");
 
+    // ---- the first-wear keys
+    VrFrameDiag k;
+    vr_frame_diag_parse("autostart_slot = 1\nautostart_new_game = 1\ndiag_pause_at = 12.5\ndiag_roll = -30\n"
+                        "dump_at = 40\ndump_when = Cinema\ndump_count = 4\ndump_every = 45\n",
+                        &k, note_unknown);
+    CHECK(k.autostart_slot == 1 && k.autostart_new_game, "autostart_slot and autostart_new_game read");
+    CHECK(near(k.diag_pause_at, 12.5f) && near(k.diag_roll, -30.0f), "diag_pause_at and diag_roll read");
+    CHECK(near(k.dump_at, 40.0f) && k.dump_when == "cinema", "dump_at read, dump_when lower-cased");
+    CHECK(k.dump_count == 4 && k.dump_every == 45, "dump_count and dump_every read");
+    CHECK(s_unknown.size() == 1, "the new keys are known");
+    VrFrameDiag kd;
+    CHECK(kd.autostart_slot == 0 && !kd.autostart_new_game && kd.diag_pause_at == 0.0f && kd.dump_at == 0.0f &&
+              kd.dump_when.empty() && kd.dump_count == 1 && kd.dump_every == 90 && kd.diag_roll == 0.0f,
+          "first-wear key defaults are off");
+    vr_frame_diag_parse("autostart_slot = 7\ndump_count = 0\ndiag_pause_at = -2\n", &kd, nullptr);
+    CHECK(kd.autostart_slot == 0 && kd.dump_count == 1 && kd.diag_pause_at == 0.0f, "out-of-range values clamped");
+
     // ---- synthetic head
     VrFrameDiag h;
     float hp[3], hq[4];
@@ -78,6 +95,30 @@ int main() {
     vr_frame_synth_eye(y, 1, e1, q);
     // Turned left by 90 degrees, the head's right vector points along -Z... its +X maps to (0,0,-1).
     CHECK(near(e1[0] - e0[0], 0.0f) && near(e1[2] - e0[2], -0.064f), "at yaw 90 the eyes are split along Z");
+
+    // Roll: the head tilts, the eyes stay 64 mm apart and tilt with it.
+    VrFrameDiag r;
+    r.diag_roll = 30.0f;
+    vr_frame_synth_head(r, hp, hq);
+    CHECK(near(hq[2], std::sin(3.14159265f / 12), 1e-4f) && near(hq[3], std::cos(3.14159265f / 12), 1e-4f),
+          "roll 30 is a turn about the forward axis");
+    vr_frame_synth_eye(r, 0, e0, q);
+    vr_frame_synth_eye(r, 1, e1, q);
+    dx = e1[0] - e0[0];
+    dy = e1[1] - e0[1];
+    dz = e1[2] - e0[2];
+    CHECK(near(std::sqrt(dx * dx + dy * dy + dz * dz), 0.064f) && dy > 0.03f, "rolled left: the right eye is higher");
+    r.diag_yaw = 90.0f;
+    vr_frame_synth_head(r, hp, hq);
+    {
+        // The rolled head's right vector, from the quaternion, must match the eye split.
+        const float x = hq[0], yq = hq[1], z = hq[2], wq = hq[3];
+        const float rx = 1 - 2 * (yq * yq + z * z), ry = 2 * (x * yq + wq * z), rz = 2 * (x * z - wq * yq);
+        vr_frame_synth_eye(r, 0, e0, q);
+        vr_frame_synth_eye(r, 1, e1, q);
+        CHECK(near(e1[0] - e0[0], 0.064f * rx) && near(e1[1] - e0[1], 0.064f * ry) && near(e1[2] - e0[2], 0.064f * rz),
+              "yaw + roll: eyes along the head's right vector");
+    }
 
     // ---- BMP writer
     const int w = 5, hgt = 3; // 5*3 = 15 bytes per row, padded to 16

@@ -27,6 +27,11 @@ echo "== diagnostics (vr-diag.ini, synthetic head, BMP writer)"
     "$here/test_vr_diag.cpp" "$lus/src/fast/vr_frame_diag.cpp" -o "$out/test_vr_diag"
 "$out/test_vr_diag"
 
+echo "== presentation (3D cinema projection views, stereo split, roll-free HUD, fade, cinema decision)"
+"$cxx" -std=c++17 -Wall -Wextra -DSOH_STEAM_FRAME=1 -I"$lus/include" \
+    "$here/test_vr_present.cpp" "$lus/src/fast/vr_present.cpp" -o "$out/test_vr_present"
+"$out/test_vr_present"
+
 echo "== [vr-perf] line format (sfvr's formatter, the Frame stage names)"
 "$cc" -std=c11 -Wall -Wextra -c "$sfvr/src/sfvr_perf.c" -I"$sfvr/include" -o "$out/sfvr_perf.o"
 "$cxx" -std=c++17 -Wall -Wextra -I"$sfvr/include" "$here/test_vr_perf.cpp" "$out/sfvr_perf.o" -o "$out/test_vr_perf"
