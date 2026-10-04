@@ -332,5 +332,19 @@ Two more rules from the same day (standard sections 3 and 4), also headset-unver
 | 6 | The laser pointer is always on top | No beam at all: the only pointer was ImGui's mouse cursor drawn inside the settings menu's own image. The flat panel (pause, file select) has no pointer: the game's 2D menus take the pad only | Beam and dot as the last two layers (`vr_frame_pointer_layers`), over the menu, panel, cinema, HUD and world. `diag_menu_open` + a dump checks it. The flat panel still has no pointer (nothing there takes one) |
 | 7 | Reticles and billboards never roll | Billboards (sprites, Navi, the in-world lock-on reticle and arrow, all from `play->billboardMtxF`) faced the game View, which in VR was the head pose with its up vector: they rolled with the head | In VR the game View's up is the world-up vector nearest the head's (`z_camera.c`); the eyes still render from the true head pose, so only what faces the camera changes. The hookshot reticle sits on the surface normal and was already roll-free; there is no head-locked crosshair |
 
+### Unattended device check (2026-10-05, headset on a desk, 72 Hz)
+
+| # | Run | Result |
+| --- | --- | --- |
+| 1 | `autostart=1 autostart_entrance=0x00BB dump_when=flat_cinema` | **Verified unattended.** Scene 0x34 logs `room files from the game` and `cinema on: flat cinema (pre-rendered room)`. The dump shows Link's house with its painted backdrop, the HUD, and the 4:3 picture in the cinema band (`layers=cinema-projection`). No green polygons |
+| 2 | `autostart_new_game=1 dump_at=68 dump_when=cinema3d dump_count=5 dump_every=360` | **Partly verified.** The Deku Tree / Navi shot ("Navi... where art thou?") plays in 3D cinema with its text in the picture, and its top corners show sky. The wide shot where the sky went missing was not captured. `[vr-sky]` in scene 0x55: skyboxId 29, not disabled. Immersive mode was not run |
+| 3 | Same intro run | **Verified unattended:** 3D cinema for the intro (the nightmare at the castle gate, Zelda on horseback, the Deku Tree), letterboxed, with a fade from black between modes. The depth of the cinema image was not judged, and nobody has worn it |
+| 4 | `autostart_slot=1 diag_pause_at=12 dump_when=panel` | **Verified unattended:** the user's save loads (it starts in Link's house, a pre-rendered room). The pause screen is on the panel, which is the only layer (`layers=panel`), with the frozen room drawn behind the kaleido pages |
+| 5 | `autostart_entrance=0x00EE diag_roll=30 dump_when=immersive` | **Verified unattended (pose only):** with the head rolled 30 degrees, the HUD layer pose is level (`hud ... quat=0,0,0,1`). The compositor's view of the HUD can't be dumped |
+| 6 | `diag_menu_open=1 dump_at=8` | **Verified unattended (layer order):** `layers=projection hud menu pointer-beam pointer-dot`, with the beam and dot last. Nit: the menu's left column clips "Comfort & Movement" |
+| 7 | none | Not checked on the device (no dump shows billboard roll) |
+
+Everything in this section is still **headset-unverified**. The user's saves were byte-identical before and after the runs (backup compared, then removed).
+
 Also: dumps now cover the flat panel and the HUD (`vr-panel.bmp`, `vr-hud.bmp`) and record the layers, so a pause or a
 cinema frame can be dumped (`dump_when`), and a series can be taken through a cutscene (`dump_count`, `dump_every`).
