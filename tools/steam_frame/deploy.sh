@@ -44,7 +44,9 @@
 #   FRAME_ADB_HOST   adb target, host or host:port (default 192.168.1.31:5555: the Frame on Wi-Fi,
 #                    where Lepton Development publishes its adbd on port 5555). Over USB networking
 #                    set FRAME_HOST and this to the USB address
-#   FRAME_LOCK_SESSION  your session name in the shared Frame booking (default code-fe)
+#   FRAME_LOCK_SESSION  one-word holder name in the shared Frame booking (default oot)
+#   FRAME_LOCK_CONTACT  the session's messageable ListAgents name, put in the purpose
+#                       as (message '<name>') (default: Frame VR port for Ocarina of Time)
 #   ADB              adb binary
 #
 # The Frame is shared by several sessions and SteamVR runs one scene app at a time. Anything that
@@ -74,7 +76,8 @@ frame_host="${FRAME_HOST:-steamos@192.168.1.31}"
 adb_target="${FRAME_ADB_HOST:-192.168.1.31:5555}"
 [[ "$adb_target" == *:* ]] || adb_target="$adb_target:5555"
 lock_sh="${FRAME_LOCK_SH:-$HOME/.claude/skills/steam-frame-vr-port/scripts/frame-lock.sh}"
-lock_session="${FRAME_LOCK_SESSION:-code-fe}"
+lock_session="${FRAME_LOCK_SESSION:-oot}"
+lock_contact="${FRAME_LOCK_CONTACT:-Frame VR port for Ocarina of Time}"
 lock_minutes=20
 release=0
 force=0
@@ -134,7 +137,7 @@ fi
 
 claim_frame() {
     [[ -x "$lock_sh" ]] || die "no frame-lock.sh at $lock_sh (set FRAME_LOCK_SH)"
-    if ! "$lock_sh" claim "$lock_session" "OoTVR: $1" "$lock_minutes"; then
+    if ! "$lock_sh" claim "$lock_session" "OoTVR: $1 (message '$lock_contact')" "$lock_minutes"; then
         die "the Frame is booked by someone else (status above); nothing was changed. Use --release when you are done, and queue with: $lock_sh queue $lock_session \"OoTVR: $1\""
     fi
 }
