@@ -44,6 +44,13 @@ static const std::map<int32_t, const char*> vrHudAttachOptions = {
     { 2, "Right Hand" },
 };
 
+#ifdef SOH_STEAM_FRAME
+static const std::map<int32_t, const char*> vrCutsceneModeOptions = {
+    { 0, "3D Cinema" },
+    { 1, "Immersive" },
+};
+#endif
+
 static const std::map<int32_t, const char*> vrItemSelHandOptions = {
     { 0, "Sword Hand" },
     { 1, "Off Hand" },
@@ -1421,6 +1428,37 @@ void SohMenu::AddMenuVRSettings() {
     // --------------------------------------------------------------- HUD & Menus
     AddSidebarEntry("VR Settings", "HUD & Menus", 1);
     WidgetPath hudPath = { "VR Settings", "HUD & Menus", SECTION_COLUMN_1 };
+
+#ifdef SOH_STEAM_FRAME
+    // Steam Frame: cutscenes and pre-rendered rooms on the 3D cinema screen (VrPresentation.cpp).
+    AddWidget(hudPath, "Cutscenes", WIDGET_SEPARATOR_TEXT);
+    AddWidget(hudPath, "Cutscenes", WIDGET_CVAR_COMBOBOX)
+        .CVar("gVrCutsceneMode")
+        .Options(ComboboxOptions()
+                     .DefaultIndex(0)
+                     .ComboMap(vrCutsceneModeOptions)
+                     .Tooltip("3D Cinema: cutscenes play on a big screen in front of you, in 3D, with the "
+                              "game's own camera - no snapping camera turns, nothing missing behind you. "
+                              "Immersive: you stand inside the cutscene as before (some, like the fairy "
+                              "flying through the forest, are great this way)."));
+    AddWidget(hudPath, "Pre-Rendered Rooms On The Cinema Screen", WIDGET_CVAR_CHECKBOX)
+        .CVar("gVrPrerenderCinema")
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip(
+            "Link's house, the shops, the Market and the Temple of Time are painted backdrops behind a "
+            "fixed camera. They are shown the original way on the cinema screen unless a mod (such as "
+            "Djipi's 3DS pack) rebuilds them in 3D. Off: the old green 3D view. Takes effect at the "
+            "next room change."));
+    AddWidget(hudPath, "Cinema 3D Depth: %.2f", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar("gVrCinemaDepth")
+        .Options(FloatSliderOptions().Min(0.0f).Max(1.0f).DefaultValue(0.55f).Step(0.05f).Format("%.2f").Tooltip(
+            "How deep the cinema picture looks: 0 is flat, 1 puts the far distance at infinity."));
+    AddWidget(hudPath, "Cinema Screen Width: %.1f m", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar("gVrCinemaWidth")
+        .Options(FloatSliderOptions().Min(2.0f).Max(6.0f).DefaultValue(3.6f).Step(0.1f).Format("%.1f"));
+    AddWidget(hudPath, "Cinema Screen Distance: %.1f m", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar("gVrCinemaDistance")
+        .Options(FloatSliderOptions().Min(1.5f).Max(6.0f).DefaultValue(3.0f).Step(0.1f).Format("%.1f"));
+#endif
 
     AddWidget(hudPath, "HUD", WIDGET_SEPARATOR_TEXT);
     AddWidget(hudPath, "HUD Attachment", WIDGET_CVAR_COMBOBOX)

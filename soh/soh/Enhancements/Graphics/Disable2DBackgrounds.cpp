@@ -1,5 +1,6 @@
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include "soh/ShipInit.hpp"
+#include "soh/Enhancements/steam-frame/VrPresentation.h"
 
 extern "C" {
 #include "variables.h"
@@ -10,6 +11,14 @@ extern PlayState* gPlayState;
 
 #define CVAR_NAME CVAR_ENHANCEMENT("3DSceneRender")
 #define CVAR_VALUE CVarGetInteger(CVAR_NAME, 1)
+
+// Steam Frame: in VR, unless a mod replaces this scene's rooms, the pre-rendered rooms are shown the
+// original way on the cinema screen (VrPresentation.cpp), so this enhancement stands down for them.
+#ifdef VR_FRAME_PRESENTATION
+#define VR_KEEPS_PRERENDER() (VrFrame_PrerenderOriginal(gPlayState) != 0)
+#else
+#define VR_KEEPS_PRERENDER() false
+#endif
 
 std::set<SceneID> fogControlList = {
     SCENE_MARKET_ENTRANCE_DAY,
@@ -89,6 +98,9 @@ void Register3DPreRenderedScenes() {
     // skybox. Overriding the id here means Skybox_Setup loads a real sky; overriding it any later would
     // leave the display lists pointing at the pre-rendered skybox's texture slots.
     COND_HOOK(AfterSceneCommands, CVAR_VALUE, [](int16_t sceneNum) {
+        if (VR_KEEPS_PRERENDER()) {
+            return;
+        }
         if (!skyboxSceneControlList.contains(static_cast<SceneID>(sceneNum)) &&
             !skyboxIdControlList.contains(static_cast<SkyboxId>(gPlayState->skyboxId))) {
             return;
@@ -107,7 +119,7 @@ void Register3DPreRenderedScenes() {
     });
 
     COND_HOOK(OnPlayDrawBegin, CVAR_VALUE, []() {
-        if (!fogControlList.contains(static_cast<SceneID>(gPlayState->sceneNum))) {
+        if (!fogControlList.contains(static_cast<SceneID>(gPlayState->sceneNum)) || VR_KEEPS_PRERENDER()) {
             return;
         }
 
@@ -123,7 +135,11 @@ void Register3DPreRenderedScenes() {
         }
     });
 
-    COND_VB_SHOULD(VB_DRAW_2D_BACKGROUND, CVAR_VALUE, { *should = false; });
+    COND_VB_SHOULD(VB_DRAW_2D_BACKGROUND, CVAR_VALUE, {
+        if (!VR_KEEPS_PRERENDER()) {
+            *should = false;
+        }
+    });
 }
 
 static RegisterShipInitFunc initFunc(Register3DPreRenderedScenes, { CVAR_NAME });

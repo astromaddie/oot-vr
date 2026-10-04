@@ -1,5 +1,6 @@
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include "soh/ShipInit.hpp"
+#include "soh/Enhancements/steam-frame/VrPresentation.h"
 #include <set>
 #include <unordered_map>
 
@@ -148,6 +149,20 @@ extern "C" void DisableFixedCamera_SetNormalCamera(PlayState* play) {
 
 extern "C" void DisableFixedCamera_CheckCameraState(PlayState* play) {
     const bool disableFixedCamEnabled = CVarGetInteger(CVAR_DISABLE_FIXED_CAMERA_NAME, 0) != 0;
+#ifdef VR_FRAME_PRESENTATION
+    // Steam Frame: in VR the pre-rendered rooms of a scene no mod replaces are shown the original way
+    // on the cinema screen, which needs their fixed and pivot cameras (VrPresentation.cpp).
+    if (disableFixedCamEnabled && VrFrame_PrerenderOriginal(play)) {
+        DisableFixedCamera_RestoreAllCameraData();
+        sSetNormalCam = -1; // the next scene that is not kept counts as a scene change
+        sIsCamApplied = false;
+        sCheckItemCamState = -1;
+        sStoreLastCamType = -1;
+        sWasEnabled = true;
+        sWaitForSceneChange = false;
+        return;
+    }
+#endif
     if (!disableFixedCamEnabled) {
         DisableFixedCamera_RestoreAllCameraData();
         DisableFixedCamera_ResetState();

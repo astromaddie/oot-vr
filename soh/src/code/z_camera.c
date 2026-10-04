@@ -7532,6 +7532,21 @@ void Camera_UpdateDistortion(Camera* camera) {
 }
 
 static s32 sOOBTimer = 0;
+#ifdef SOH_STEAM_FRAME
+// The active camera's own view this tick, before the VR head pose replaces it (see Camera_Update).
+static Vec3f sVrGameEye, sVrGameAt, sVrGameUp;
+static f32 sVrGameFov = 60.0f;
+static s32 sVrGameViewValid = false;
+
+// Steam Frame: the pause panel draws (and captures) the frozen world with the game's own camera.
+void Camera_VrFrameApplyGameView(PlayState* play) {
+    if (sVrGameViewValid) {
+        play->view.fovy = sVrGameFov;
+        func_800AA358(&play->view, &sVrGameEye, &sVrGameAt, &sVrGameUp);
+    }
+}
+#endif
+
 Vec3s Camera_Update(Camera* camera) {
     Vec3f viewAt;
     Vec3f viewEye;
@@ -7757,7 +7772,23 @@ Vec3s Camera_Update(Camera* camera) {
     // Applied during cutscenes too (the render is always the HMD view in VR).
     // NOTE: camDir/inputDir (stick steering) derive from eyeAtAngle, computed above from the game
     // camera's OWN eye/at — so third-person movement stays camera-relative like flat play.
-    if (VR_IsInitialized()) {
+#ifdef SOH_STEAM_FRAME
+    // Steam Frame: the cinema screen shows this camera itself, so keep the game's own view there.
+    // The game's view is also kept aside for the pause panel (Camera_VrFrameApplyGameView): Camera_Update
+    // does not run while paused, so the frozen world would otherwise be drawn from the head pose,
+    // rolled and 130 degrees wide, on a flat panel.
+    const s32 vrOwnView = VR_GetPresentation() != VR_PRESENT_MODE_IMMERSIVE;
+    if (camera == camera->play->cameraPtrs[camera->play->activeCamera]) {
+        sVrGameEye = viewEye;
+        sVrGameAt = viewAt;
+        sVrGameUp = viewUp;
+        sVrGameFov = viewFov;
+        sVrGameViewValid = true;
+    }
+#else
+    const s32 vrOwnView = false;
+#endif
+    if (VR_IsInitialized() && !vrOwnView) {
         float vrEye[3], vrFwd[3], vrUp[3];
         VR_GetCameraPose(vrEye, vrFwd, vrUp);
         viewEye.x = vrEye[0];

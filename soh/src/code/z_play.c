@@ -15,6 +15,7 @@
 #include "soh/framebuffer_effects.h"
 
 #include <vr_interface.h>
+#include "soh/Enhancements/steam-frame/VrPresentation.h"
 
 #include <time.h>
 #include <assert.h>
@@ -1372,6 +1373,15 @@ void Play_Draw(PlayState* play) {
     if (VR_IsInitialized()) {
         // Clear last frame's live hand-matrix tags; the player limb override re-registers this frame.
         VR_ClearHandMatrices();
+#ifdef VR_FRAME_PRESENTATION
+        // Steam Frame: cutscenes and pre-rendered rooms show the game's own camera on the cinema
+        // screen; the head anchor below then rides that camera (third person), Link's hands are the
+        // game's, and snap turning is off.
+        const s32 vrCinema = VrFrame_UpdatePresentation(play) != VR_PRESENT_MODE_IMMERSIVE;
+        VrFrame_LogSky(play);
+#else
+        const s32 vrCinema = false;
+#endif
 
         // First-person availability guard: when the active camera is far from Link — a cutscene
         // framing a distant location, or Link not yet positioned during a scene load — Link's eyes
@@ -1399,7 +1409,7 @@ void Play_Draw(PlayState* play) {
             sVrFarCamFallback = false;
         }
 
-        if (CVarGetInteger("gVrFirstPerson", 1) && !sVrFarCamFallback) {
+        if (CVarGetInteger("gVrFirstPerson", 1) && !sVrFarCamFallback && !vrCinema) {
             Player* vrPlayer = GET_PLAYER(play);
             // Anchor to the actor ROOT (smooth, no walk-cycle bob) plus eye height, instead of the
             // animated head bone (actor.focus.pos) which carries the up/down bob and sway. The body
@@ -1541,6 +1551,13 @@ void Play_Draw(PlayState* play) {
         POLY_OPA_DISP = Play_SetFog(play, POLY_OPA_DISP);
         POLY_XLU_DISP = Play_SetFog(play, POLY_XLU_DISP);
 
+#ifdef SOH_STEAM_FRAME
+        if (VR_IsInitialized() && play->pauseCtx.state != 0) {
+            // The pause panel's frozen world: the game's own camera, not the head pose (z_camera.c).
+            extern void Camera_VrFrameApplyGameView(PlayState * play);
+            Camera_VrFrameApplyGameView(play);
+        }
+#endif
         func_800AA460(&play->view, play->view.fovy, play->view.zNear, play->lightCtx.fogFar);
         func_800AAA50(&play->view, 15);
 

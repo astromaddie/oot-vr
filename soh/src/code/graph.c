@@ -331,8 +331,18 @@ void Graph_Update(GraphicsContext* gfxCtx, GameState* gameState) {
         VR_SetFlatScreen(vrFlatScreen);
         if (gPlayState == NULL) {
             VR_SetTransitionFade(0, 0, 0, 0); // title / file select: no scene fade in effect
+#ifdef SOH_STEAM_FRAME
+            VR_SetPresentation(VR_PRESENT_MODE_IMMERSIVE);
+#endif
         }
-        if (vrFlatScreen) {
+#ifdef SOH_STEAM_FRAME
+        // Steam Frame 3D cinema: the text, title cards and HUD of a cutscene belong on its screen,
+        // drawn into the eye pass with the picture (zero parallax), not on the head-locked HUD quad.
+        const s32 vrOverlayInEyes = vrFlatScreen || (VR_GetPresentation() != VR_PRESENT_MODE_IMMERSIVE);
+#else
+        const s32 vrOverlayInEyes = vrFlatScreen;
+#endif
+        if (vrOverlayInEyes) {
             gSPBranchList(POLY_XLU_DISP++, gfxCtx->overlayBuffer);
             VR_SetOverlayDisplayList(NULL);
         } else {

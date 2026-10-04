@@ -2,6 +2,7 @@
 
 #include "soh/frame_interpolation.h"
 #include <vr_interface.h>
+#include "soh/Enhancements/steam-frame/VrPresentation.h"
 
 Mtx* sSkyboxDrawMatrix;
 
@@ -35,6 +36,12 @@ void SkyboxDraw_Draw(SkyboxContext* skyboxCtx, GraphicsContext* gfxCtx, s16 skyb
         // In VR, scale the skybox much larger so stereo parallax is negligible
         // and it appears at infinity. Default +/-126 units = 3.6m is far too close.
         f32 skyScale = VR_IsInitialized() ? 100.0f : 1.0f;
+#ifdef VR_FRAME_PRESENTATION
+        // Steam Frame: on the cinema screen the game's own projection (and far plane) is used.
+        if (VR_IsInitialized()) {
+            skyScale = VrFrame_SkyboxScale();
+        }
+#endif
         Matrix_Translate(x, y, z, MTXMODE_NEW);
         Matrix_Scale(skyScale, skyScale, skyScale, MTXMODE_APPLY);
     }
