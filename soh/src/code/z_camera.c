@@ -7800,6 +7800,26 @@ Vec3s Camera_Update(Camera* camera) {
         viewUp.x = vrUp[0];
         viewUp.y = vrUp[1];
         viewUp.z = vrUp[2];
+#ifdef SOH_STEAM_FRAME
+        // Steam Frame: the game's View is what billboards (play->billboardMtxF: sprites, the lock-on
+        // reticle and arrow, Navi) face. With the head's up vector they rolled with the head; with
+        // the world-up vector closest to it they turn about world up only (standard section 4).
+        // Rendering is unaffected (the eyes use the VR matrices). Straight up or down keeps the head's.
+        {
+            const f32 rx = -vrFwd[2], rz = vrFwd[0]; // right = fwd x world up
+            const f32 rlen = sqrtf(rx * rx + rz * rz);
+            if (rlen > 1e-3f) {
+                // up = right x fwd, normalised
+                const f32 ux = -rz * vrFwd[1], uy = rz * vrFwd[0] - rx * vrFwd[2], uz = rx * vrFwd[1];
+                const f32 ulen = sqrtf(ux * ux + uy * uy + uz * uz);
+                if (ulen > 1e-6f) {
+                    viewUp.x = ux / ulen;
+                    viewUp.y = uy / ulen;
+                    viewUp.z = uz / ulen;
+                }
+            }
+        }
+#endif
         viewFov = VR_GetCullingFovy();
         View_SetScale(&camera->play->view, 1.0f);
     }

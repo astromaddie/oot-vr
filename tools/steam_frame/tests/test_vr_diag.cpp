@@ -57,16 +57,18 @@ int main() {
     // ---- the first-wear keys
     VrFrameDiag k;
     vr_frame_diag_parse("autostart_slot = 1\nautostart_new_game = 1\ndiag_pause_at = 12.5\ndiag_roll = -30\n"
-                        "dump_at = 40\ndump_when = Cinema\ndump_count = 4\ndump_every = 45\n",
+                        "dump_at = 40\ndump_when = Cinema\ndump_count = 4\ndump_every = 45\ndiag_menu_open = 1\n",
                         &k, note_unknown);
     CHECK(k.autostart_slot == 1 && k.autostart_new_game, "autostart_slot and autostart_new_game read");
     CHECK(near(k.diag_pause_at, 12.5f) && near(k.diag_roll, -30.0f), "diag_pause_at and diag_roll read");
     CHECK(near(k.dump_at, 40.0f) && k.dump_when == "cinema", "dump_at read, dump_when lower-cased");
     CHECK(k.dump_count == 4 && k.dump_every == 45, "dump_count and dump_every read");
+    CHECK(k.diag_menu_open, "diag_menu_open read");
     CHECK(s_unknown.size() == 1, "the new keys are known");
     VrFrameDiag kd;
     CHECK(kd.autostart_slot == 0 && !kd.autostart_new_game && kd.diag_pause_at == 0.0f && kd.dump_at == 0.0f &&
-              kd.dump_when.empty() && kd.dump_count == 1 && kd.dump_every == 90 && kd.diag_roll == 0.0f,
+              kd.dump_when.empty() && kd.dump_count == 1 && kd.dump_every == 90 && kd.diag_roll == 0.0f &&
+              !kd.diag_menu_open,
           "first-wear key defaults are off");
     vr_frame_diag_parse("autostart_slot = 7\ndump_count = 0\ndiag_pause_at = -2\n", &kd, nullptr);
     CHECK(kd.autostart_slot == 0 && kd.dump_count == 1 && kd.diag_pause_at == 0.0f, "out-of-range values clamped");
