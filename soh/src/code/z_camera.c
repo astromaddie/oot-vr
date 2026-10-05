@@ -7545,6 +7545,37 @@ void Camera_VrFrameApplyGameView(PlayState* play) {
         func_800AA358(&play->view, &sVrGameEye, &sVrGameAt, &sVrGameUp);
     }
 }
+
+// The world-up vector nearest the head's up, for a view that looks along `fwd` (billboards turn
+// about world up only). `up` is left alone looking straight up or down.
+static void Camera_VrFrameRollFreeUp(const float fwd[3], Vec3f* up) {
+    const f32 rx = -fwd[2], rz = fwd[0]; // right = fwd x world up
+    const f32 rlen = sqrtf(rx * rx + rz * rz);
+    if (rlen > 1e-3f) {
+        // up = right x fwd, normalised
+        const f32 ux = -rz * fwd[1], uy = rz * fwd[0] - rx * fwd[2], uz = rx * fwd[1];
+        const f32 ulen = sqrtf(ux * ux + uy * uy + uz * uz);
+        if (ulen > 1e-6f) {
+            up->x = ux / ulen;
+            up->y = uy / ulen;
+            up->z = uz / ulen;
+        }
+    }
+}
+
+// Steam Frame: the world under the pause panel is drawn from the live head; Camera_Update does not
+// run while paused, so the CPU view (culling, billboards) is set from the head pose here.
+void Camera_VrFrameApplyHeadView(PlayState* play) {
+    float e[3], f[3], u[3];
+    VR_GetCameraPose(e, f, u);
+    Vec3f eye = { e[0], e[1], e[2] };
+    Vec3f at = { e[0] + f[0] * 100.0f, e[1] + f[1] * 100.0f, e[2] + f[2] * 100.0f };
+    Vec3f up = { u[0], u[1], u[2] };
+    Camera_VrFrameRollFreeUp(f, &up);
+    play->view.fovy = VR_GetCullingFovy();
+    View_SetScale(&play->view, 1.0f);
+    func_800AA358(&play->view, &eye, &at, &up);
+}
 #endif
 
 Vec3s Camera_Update(Camera* camera) {
@@ -7805,20 +7836,7 @@ Vec3s Camera_Update(Camera* camera) {
         // reticle and arrow, Navi) face. With the head's up vector they rolled with the head; with
         // the world-up vector closest to it they turn about world up only (standard section 4).
         // Rendering is unaffected (the eyes use the VR matrices). Straight up or down keeps the head's.
-        {
-            const f32 rx = -vrFwd[2], rz = vrFwd[0]; // right = fwd x world up
-            const f32 rlen = sqrtf(rx * rx + rz * rz);
-            if (rlen > 1e-3f) {
-                // up = right x fwd, normalised
-                const f32 ux = -rz * vrFwd[1], uy = rz * vrFwd[0] - rx * vrFwd[2], uz = rx * vrFwd[1];
-                const f32 ulen = sqrtf(ux * ux + uy * uy + uz * uz);
-                if (ulen > 1e-6f) {
-                    viewUp.x = ux / ulen;
-                    viewUp.y = uy / ulen;
-                    viewUp.z = uz / ulen;
-                }
-            }
-        }
+        Camera_VrFrameRollFreeUp(vrFwd, &viewUp);
 #endif
         viewFov = VR_GetCullingFovy();
         View_SetScale(&camera->play->view, 1.0f);

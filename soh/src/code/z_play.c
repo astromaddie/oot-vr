@@ -1553,9 +1553,16 @@ void Play_Draw(PlayState* play) {
 
 #ifdef SOH_STEAM_FRAME
         if (VR_IsInitialized() && play->pauseCtx.state != 0) {
-            // The pause panel's frozen world: the game's own camera, not the head pose (z_camera.c).
+            // Camera_Update does not run while paused. With the world under the pause panel
+            // (gVrPauseWorld) the CPU view follows the live head for culling, or keeps the game's own
+            // camera on the cinema screen; the old flat panel captures the game's own camera.
             extern void Camera_VrFrameApplyGameView(PlayState * play);
-            Camera_VrFrameApplyGameView(play);
+            extern void Camera_VrFrameApplyHeadView(PlayState * play);
+            if (CVarGetInteger("gVrPauseWorld", 1) && VR_GetPresentation() == VR_PRESENT_MODE_IMMERSIVE) {
+                Camera_VrFrameApplyHeadView(play);
+            } else {
+                Camera_VrFrameApplyGameView(play);
+            }
         }
 #endif
         func_800AA460(&play->view, play->view.fovy, play->view.zNear, play->lightCtx.fogFar);
@@ -1662,6 +1669,14 @@ void Play_Draw(PlayState* play) {
             R_PAUSE_MENU_MODE = 0;
         }
 
+#ifdef SOH_STEAM_FRAME
+        // Steam Frame pause over the world: no captured backdrop; the world is drawn as usual (from its
+        // frozen state) into the eyes, the pages go to the panel (graph.c).
+        if (R_PAUSE_MENU_MODE == 3 && VR_IsInitialized() && play->pauseCtx.state != 0 &&
+            CVarGetInteger("gVrPauseWorld", 1)) {
+            // fall through to the world
+        } else
+#endif
         if (R_PAUSE_MENU_MODE == 3) {
             Gfx* gfxP = POLY_OPA_DISP;
 

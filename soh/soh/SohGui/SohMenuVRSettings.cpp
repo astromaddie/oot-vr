@@ -45,6 +45,12 @@ static const std::map<int32_t, const char*> vrHudAttachOptions = {
 };
 
 #ifdef SOH_STEAM_FRAME
+static const std::map<int32_t, const char*> vrRefreshRateOptions = {
+    { 72, "72 Hz" },
+    { 90, "90 Hz" },
+    { 120, "120 Hz" },
+    { 144, "144 Hz" },
+};
 static const std::map<int32_t, const char*> vrCutsceneModeOptions = {
     { 0, "3D Cinema" },
     { 1, "Immersive" },
@@ -1452,6 +1458,11 @@ void SohMenu::AddMenuVRSettings() {
         .CVar("gVrCinemaDepth")
         .Options(FloatSliderOptions().Min(0.0f).Max(1.0f).DefaultValue(0.55f).Step(0.05f).Format("%.2f").Tooltip(
             "How deep the cinema picture looks: 0 is flat, 1 puts the far distance at infinity."));
+    AddWidget(hudPath, "Pause Over The World", WIDGET_CVAR_CHECKBOX)
+        .CVar("gVrPauseWorld")
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip(
+            "The pause screen floats in front of the frozen world, which you can still look around in "
+            "(dimmed). Off: the pause screen alone on a dark background."));
     AddWidget(hudPath, "Cinema Screen Width: %.1f m", WIDGET_CVAR_SLIDER_FLOAT)
         .CVar("gVrCinemaWidth")
         .Options(FloatSliderOptions().Min(2.0f).Max(6.0f).DefaultValue(3.6f).Step(0.1f).Format("%.1f"));
@@ -1544,8 +1555,39 @@ void SohMenu::AddMenuVRSettings() {
                               "Applies live."));
 
     // ---------------------------------------------------------------- Performance
+#ifdef SOH_STEAM_FRAME
+    AddSidebarEntry("VR Settings", "Display & Performance", 2);
+    WidgetPath perfPath = { "VR Settings", "Display & Performance", SECTION_COLUMN_1 };
+
+    // Standard section 9: 120 Hz at ~2160x2160 per eye, with an automatic step down while worn.
+    AddWidget(perfPath, "Display", WIDGET_SEPARATOR_TEXT);
+    AddWidget(perfPath, "Refresh Rate", WIDGET_CVAR_COMBOBOX)
+        .CVar("gVrRefreshRate")
+        .Options(ComboboxOptions()
+                     .DefaultIndex(120)
+                     .ComboMap(vrRefreshRateOptions)
+                     .Tooltip("The headset asks for the highest rate it offers at or below this. Takes effect at "
+                              "the next start."));
+    AddWidget(perfPath, "Step Down When Too Slow", WIDGET_CVAR_CHECKBOX)
+        .CVar("gVrRefreshAutoFallback")
+        .Options(CheckboxOptions().DefaultValue(true).Tooltip(
+            "If the game holds less than 90% of the refresh rate for 20 seconds while you wear the headset, "
+            "it drops to the next rate (120, then 90, then 72) for the rest of the session. The log says when."));
+    AddWidget(perfPath, "Resolution Scale: %.2f", WIDGET_CVAR_SLIDER_FLOAT)
+        .CVar("gVrResolutionScale")
+        .Options(FloatSliderOptions()
+                     .Min(0.75f)
+                     .Max(1.5f)
+                     .DefaultValue(1.0f)
+                     .Step(0.05f)
+                     .Format("%.2f")
+                     .Tooltip("1.0 = about 2160 x 2160 per eye, the panel's own resolution (or the headset's "
+                              "recommendation if that is larger). Lower is faster, higher sharper. Takes effect "
+                              "at the next start."));
+#else
     AddSidebarEntry("VR Settings", "Performance", 2);
     WidgetPath perfPath = { "VR Settings", "Performance", SECTION_COLUMN_1 };
+#endif
 
     AddWidget(perfPath, "Render Cost", WIDGET_SEPARATOR_TEXT);
     AddWidget(perfPath, "The game's display list is walked once per eye, every frame. At 120 Hz "
