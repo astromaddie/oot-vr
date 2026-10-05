@@ -396,3 +396,13 @@ pass, where the VR matrices replace the pages' own projection, so they vanished.
 Frame, pause over the world): the kaleido draw is cut out of `POLY_OPA` into a sub-list (`POLY_OPA` branches over it,
 so the eyes skip it) and the overlay list calls it at the same point, before the HUD and the text, so the panel pass
 draws the pages with their own camera as before. **Headset-unverified.**
+
+### Round 2 on the device (2026-10-05, unattended, launched as the OoTVR Steam title)
+
+| Check | Result |
+| --- | --- |
+| 120 Hz / 2160² | **Verified unattended:** Kokiri Forest 120.0 fps, 0 missed per 10 s, CPU ~7 ms of the 8.3 ms period, swapchain 2160. Only a Steam-title launch gets the per-app rate; an adb launch in Lepton Development runs at 72 Hz |
+| Window-stereo cinema | **Verified unattended (scene):** in the Deku Tree shot the whole picture is shifted right in eye 1 (behind the screen plane); `cinema convergence` lines follow the nearest content (e.g. 27 for nearest 18). Text on the screen plane was not captured |
+| Pause over the world | Build 0fb996c0 crashed in `KaleidoScope_UpdateCursorSize` on every pause (fixed in 0fb996c0's successor). 286d0887: no crash, `layers=projection panel(over-world)`, the panel shows the item page with the Z/R side pages, and the eyes show Kokiri Forest in 3D with no pages in it. **Headset-unverified** (dimming, comfort) |
+
+Launching unattended runs as the Steam title: write `vr-diag.ini`, then `printf 'steam://rungameid/10676229820947365888\n' > ~/.steam/steam.pipe` on the Frame (shortcut appid 2485753461). The title reinstalls `~/devkit-game/OoTVR/OoT-VR.apk` on launch, so `deploy.sh --no-adb` is enough to update it. Stop it with `podman exec lepton-steamlaunch-2485753461 /system/bin/am force-stop com.linkzenic.soh.frame`; adb only reaches Lepton Development.
