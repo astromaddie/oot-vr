@@ -1326,6 +1326,22 @@ skip:
 
 void Play_DrawOverlayElements(PlayState* play) {
     if ((play->pauseCtx.state != 0) || (play->pauseCtx.debugState != 0)) {
+#ifdef SOH_STEAM_FRAME
+        // Steam Frame pause over the world: the kaleido pages are drawn into POLY_OPA (vanilla), which now
+        // goes to the eye pass with the world, where the VR matrices replace their projection and they
+        // vanish. Cut them out of POLY_OPA into a sub-list: the eye pass branches over it, the overlay list
+        // (the panel pass, graph.c) calls it, in the original order (before the HUD and the text).
+        if (VR_IsInitialized() && (play->pauseCtx.state != 0) && CVarGetInteger("gVrPauseWorld", 1)) {
+            OPEN_DISPS(play->state.gfxCtx);
+            Gfx* vrSkip = POLY_OPA_DISP++; // filled in below: branch over the pages
+            Gfx* vrPages = POLY_OPA_DISP;
+            KaleidoScopeCall_Draw(play);
+            gSPEndDisplayList(POLY_OPA_DISP++);
+            gSPBranchList(vrSkip, POLY_OPA_DISP);
+            gSPDisplayList(OVERLAY_DISP++, vrPages);
+            CLOSE_DISPS(play->state.gfxCtx);
+        } else
+#endif
         KaleidoScopeCall_Draw(play);
     }
 

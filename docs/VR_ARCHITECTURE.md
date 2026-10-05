@@ -386,3 +386,13 @@ set, and the update crashed on the uninitialised pointer (`0xAB` is `__osMalloc`
 `KaleidoScopeCall_Draw` makes the kaleido overlay current again before drawing, as `KaleidoScopeCall_Update` does each
 tick. SoH's kaleido overlays are empty table entries, so this is bookkeeping only. The pause screen now runs its
 original update and draw order, with the world drawn behind it. **Headset-unverified.**
+
+### Pause pages missing (device, 2026-10-05) and their fix
+
+With the crash fixed, the pause panel showed only the overlay elements (button prompts, hearts, rupees): no item, map,
+quest or equipment page. Cause: vanilla kaleido draws its pages into `POLY_OPA` (`KaleidoScope_DrawPages` and the
+`z_kaleido_*.c` page drawers), not into the overlay list. With the world kept in the eyes, `POLY_OPA` is the eye
+pass, where the VR matrices replace the pages' own projection, so they vanished. Fix (`Play_DrawOverlayElements`,
+Frame, pause over the world): the kaleido draw is cut out of `POLY_OPA` into a sub-list (`POLY_OPA` branches over it,
+so the eyes skip it) and the overlay list calls it at the same point, before the HUD and the text, so the panel pass
+draws the pages with their own camera as before. **Headset-unverified.**
