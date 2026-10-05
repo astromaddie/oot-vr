@@ -18,9 +18,9 @@ re-measured here.
 | Container | Lepton, Android 11 (API 30), arm64-v8a, no clipboard service, no loader broker, no `android.hardware.vr.headtracking` |
 | GL | GLES 3.2 through Mesa Zink on Turnip (Adreno 750); `GL_OVR_multiview2`, `GL_EXT_sRGB_write_control` |
 | Runtime | SteamVR/OpenXR via `/vendor/etc/openxr/1/active_runtime.json`; the app carries the Khronos loader |
-| Eyes | recommended 1728x1728 per eye; the port renders the recommended size times `gVrResolutionScale` (default 1.0), clamped to the runtime's maximum |
+| Eyes | recommended 1728x1728 per eye; the port renders the recommended size times an eye size of 2160 (Frame: the runtime's recommendation brought up to 2160 when smaller, never down) times `gVrResolutionScale` (0.75-1.5, default 1.0), clamped to the runtime's maximum; recommended, maximum and chosen are logged as `[vr] eye size: ...`. The swapchain is created at that size and drawn into directly: never rendered larger and scaled down |
 | Swapchain | `GL_SRGB8_ALPHA8`, 3 images, written raw (sRGB write conversion off), one 2-layer image for multiview |
-| Refresh | 72 Hz offered; the port asks for 90 only if the runtime lists it |
+| Refresh | the port requests the highest offered rate at or below `gVrRefreshRate` (default 120), with the automatic fallback of section 11 |
 | Controllers | `valve/frame_controller_valve` with `XR_VALVE_frame_controller_interaction` |
 | Game | Ship of Harkinian 9.2.3 (OoT decomp), Fast3D GL renderer, 20 Hz game tick with frame interpolation |
 
@@ -100,9 +100,11 @@ Back to front:
    was drawn with. **3D cinema** (Frame): the same swapchain, but each eye's image holds the game camera's picture in a
    16:9 (4:3 for pre-rendered rooms) band of rows, and each view's pose is (screen orientation, live eye position) with
    the FOV that exactly covers the cinema screen rectangle from that eye (`vr_cinema_eye_view`). Black elsewhere.
-   **Not submitted while the flat panel is up** (Frame): the stale stereo frame behind the panel was the "distorted box".
+   Always submitted on the Frame (section 11): behind the pause panel it is the live frozen world, dimmed; behind file
+   select a black image (with no projection layer SteamVR shows its own environment). The stale stereo frame round 1
+   removed was the "distorted box".
 2. Either the **flat panel** (a world-locked 1280x960 quad, 2.4 m wide at 2.2 m, for 2D contexts: file select, pause; it
-   carries its own frozen world, see section 10) or the **HUD quad** (1024x768, 2 m ahead, following head yaw and pitch
+   during pause it holds only the kaleido pages, alpha-blended over the world, see section 11) or the **HUD quad** (1024x768, 2 m ahead, following head yaw and pitch
    but not roll on the Frame, or pinned to a hand by setting). In cinema the HUD and text are drawn into the picture.
 3. On the Frame without `XR_KHR_composition_layer_color_scale_bias`: a black head-locked fade quad.
 4. The **settings menu** (ImGui on a 1280x960 quad, 1.6 m wide at 1.3 m, placed in front of the gaze when it opens,
@@ -126,7 +128,7 @@ presentation fade: every change between immersive, 3D cinema, flat cinema and th
 | ROM pickup | scans `/storage/emulated/0` | data folder first, then `/sdcard/Documents`, then `/storage/emulated/0` |
 | Logging | spdlog file only | plus logcat (tag `SoH`) |
 | Standby frames | left open | ended empty at once; `force_render` draws them |
-| Refresh | whatever the system gives | logs the offered rates, asks for 90 when offered |
+| Refresh | whatever the system gives | logs the offered rates, asks for the highest at or below `gVrRefreshRate` (120), falls back 120 -> 90 -> 72 when too slow while worn |
 | Controller profile | Touch, Index, simple | Frame first, then the same three |
 | Left/right buttons | X Y + hamburger on the left, A B on the right | ABXY and Menu on the right, View and D-pad on the left, bumpers; X/Y folded into the left hand's bits |
 | Pause | stick click (classic) or Y (selector) | R Menu (all profiles), Y as before in the selector profile |
@@ -226,6 +228,8 @@ being drawn. The laser (trigger = click, right stick = scroll) works as before. 
 | `dump_at` | seconds after gameplay starts (the first presentation request) before a dump may fire; combines with `dump_frame` |
 | `dump_when` | `any` (default), `immersive`, `cinema`, `cinema3d`, `flat_cinema`, `panel`: the dump waits for that presentation |
 | `dump_count`, `dump_every` | a series of dumps, `dump_every` XR frames apart (default 90); files 2.. get `-2`, `-3`, ... |
+| `refresh_rate` | Hz, overrides `gVrRefreshRate` for the run (the highest offered rate at or below it is requested; logged `[vr] display: requesting N Hz`) |
+| `resolution_scale` | 0.75-1.5, overrides `gVrResolutionScale` for the run (logged in `[VR] Eye 0 render resolution`) |
 | `diag_menu_open` | opens the VR settings menu 2 s into gameplay; with `force_render` the parked right hand points straight ahead at it (keep `diag_yaw` 0), so a dump shows the pointer (`vr-menu.bmp`, and `pointer-beam pointer-dot` last in `layers=` with the beam pose) |
 
 A dump writes what that frame drew: `vr-eye0.bmp`/`vr-eye1.bmp` (eye pass), `vr-panel.bmp` (flat panel), `vr-hud.bmp`
@@ -260,7 +264,10 @@ not listed.
 | `turn_mode`, `snap_angle` | `gVrTurnStyle`, `gVrSnapTurnDegrees` | default snap 45 (the standard suggests 30; not changed) |
 | `smooth_turn_speed` | `gVrSmoothTurnSpeed` | 120 deg/s |
 | `dominant_hand` | `gVrLeftHanded` | |
-| `resolution_scale` | `gVrResolutionScale` | times the recommended eye size; takes effect at the next start |
+| `resolution_scale` | `gVrResolutionScale` | Frame: a multiplier on the ~2160 target (0.75-1.5, default 1.0); Quest: times the recommended size. Next start |
+| `refresh_rate` | `gVrRefreshRate` | Frame: 72 / 90 / 120 (default) / 144; takes effect at the next start |
+| (automatic refresh fallback) | `gVrRefreshAutoFallback` | Frame, default on |
+| (pause over the world) | `gVrPauseWorld`, `gVrPauseDim` | Frame, default on / 0.35 |
 | `hud_distance` | `gVrHudDistance` | |
 | `height` / `world_scale` | `gVrAutoWorldScale`, `gVrWorldScale` | |
 | `force_render`, `diag_yaw`, `dump_frame`, `timing` | `vr-diag.ini` | not CVars |
@@ -284,9 +291,11 @@ not listed.
 | Worn: scale, comfort, HUD, controls | not started |
 | `soh.o2r` bundled in the APK | done by hand (host-built, gitignored); not wired into Gradle |
 | Pause game and audio on focus loss, depth submission, foveation, Frame render models | not started |
-| First-wear fixes (section 10): pre-rendered rooms on the cinema, 3D cinema cutscenes, pause panel alone with its own backdrop, roll-free HUD, mode fade, cinema decision log, new diag keys | host build, host tests (cinema views, stereo split, roll-free HUD, fade, decision, diag parser); **headset-unverified** |
+| Link's house (pre-rendered room) on the flat cinema, the Deku Tree scene's depth in 3D cinema, the VR settings menu | **played in headset** (2026-10-05) |
+| First-wear fixes (section 10): 3D cinema cutscenes in general, roll-free HUD, mode fade, cinema decision log, new diag keys | verified unattended (section 10), not judged worn |
+| Round 2 (section 11): window-stereo cinema with the 2D overlays in front, pause over the live world, 120 Hz / 2160² with the fallback | host build, host tests; **headset-unverified** |
 | Missing sky in the intro, immersive mode | not explained; `[vr-sky]` log added |
-| 3D pause screen | not started (section 10) |
+| 3D pause screen (kaleido as stereo geometry) | not started; the pause panel now floats over the live 3D world instead (section 11) |
 
 ## 9. First-wear checklist (about 15 minutes)
 
@@ -348,3 +357,18 @@ Everything in this section is still **headset-unverified**. The user's saves wer
 
 Also: dumps now cover the flat panel and the HUD (`vr-panel.bmp`, `vr-hud.bmp`) and record the layers, so a pause or a
 cinema frame can be dumped (`dump_when`), and a series can be taken through a cutscene (`dump_count`, `dump_every`).
+
+### Worn (2026-10-05)
+
+The user wore the round-1 build: **Link's house on the flat cinema is good, the Deku Tree scene in 3D cinema has good
+depth, and the VR settings menu works.** Those three are played in headset. Two new reports led to section 11.
+
+## 11. Second wear (2026-10-05) and the display target
+
+All Frame-only, all **headset-unverified** (host build and host tests).
+
+| # | Report | Root cause | Fix |
+| --- | --- | --- | --- |
+| 1 | In 3D cinema the 2D overlays (cutscene text, the title logo) read behind the 3D scene they cover | The split converged at a fixed 150 game units: everything nearer had crossed disparity, in front of the screen plane, while the 2D draws sit on it (zero disparity) | **Window stereo** (option a). Each frame converges at the nearest visible scene vertex of the frame before (the interpreter tracks the minimum clip w of unclipped vertices in front of the near plane, outside 2D sections; 5% margin; never nearer than the projection's near plane, `vr_cinema_near_w`). It follows nearer content within about three frames and farther content slowly (`vr_cinema_convergence_step`). The whole scene then has uncrossed disparity behind the screen plane, so the 2D draws are always in front and nothing breaks the screen's edges (no window violation, which crossed-disparity 2D, option b, would cause at full-screen fills and letterbox bars). Option c (a separate layer) would show the text in front but still at a different depth from the picture plane. The overlay display list is marked 2D with a new opcode `G_VR2D` (0x4d) in `graph.c`: title logo, title cards, dialogue, HUD, and the A button that `z_parameter.c` draws with its own perspective all get zero disparity. Flat cinema is mono and needs nothing. `gVrCinemaConvergence` > 0 pins the old fixed convergence. Logged: `[vr] cinema convergence N (nearest visible N, near plane N)` |
+| 2 | Pause: a white, blobby background, a flat panel in the middle, the room behind the pages squashed | (a) The panel was the only layer, so SteamVR filled the rest with its own environment. (b) The pause backdrop was the game's capture of one frame, at another aspect than the 4:3 panel | **The frozen world in real 3D behind the panel.** No retained display list was needed: the game state is frozen while paused, so `Play_Draw` simply keeps drawing the world (`gVrPauseWorld`, the captured backdrop is skipped) and the eye pass renders it from the live head pose, dimmed to 35% at the compositor (`gVrPauseDim`). Culling follows the head (`Camera_VrFrameApplyHeadView`, since `Camera_Update` does not run while paused); in a pre-rendered room or a cutscene the eyes keep the cinema picture. The overlay list (the kaleido pages) goes alone to the 4:3 panel in front, cleared transparent and alpha-blended, so there is no backdrop in it. A projection layer is always submitted: behind file select it is a black image. `gVrPauseWorld` 0 gives the panel alone on black |
+| 3 | Standard section 9: 120 Hz at ~2160² | The port asked for 90 Hz and rendered 1728² | `gVrRefreshRate` (default 120): the highest offered rate at or below it is requested (`vr_refresh_pick`), offered rates logged. **Automatic fallback**: two consecutive 10 s windows below 90% of the current rate while worn (shouldRender, focused, not `force_render`) request the next lower rate, 90 then 72 (`vr_refresh_fallback`, `vr_refresh_governor_frame`), for the rest of the run, logged `[vr] refresh fallback: ...`. Eye size: the runtime's recommendation brought up to 2160 when smaller (1.0 when SteamVR already recommends 2160, as the user's per-app setting now does), times `gVrResolutionScale` (0.75-1.5, default 1.0), within the runtime's maximum (`vr_eye_size`, logged `[vr] eye size: recommended, maximum, chosen`). Settings in VR Settings > Display & Performance; diag keys `refresh_rate`, `resolution_scale`. `[vr-perf]` and `[vr-wait]` take the period from the runtime, so they work at any rate. **Performance at 120 Hz / 2160² is not measured** |

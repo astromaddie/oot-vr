@@ -145,16 +145,26 @@ VR Settings > HUD & Menus:
 | Cutscenes | `gVrCutsceneMode` | 3D Cinema (0) | 3D Cinema or Immersive (1, the old 6DoF way; camera cuts are now shown as cuts there) |
 | Pre-Rendered Rooms On The Cinema Screen | `gVrPrerenderCinema` | on | off = the old green 3D view in rooms no mod replaces |
 | Cinema 3D Depth | `gVrCinemaDepth` | 0.55 | 0 flat, 1 = far distance at infinity |
+| Pause Over The World | `gVrPauseWorld` | on | the pause pages float in front of the frozen 3D world (dimmed, `gVrPauseDim` 0.35); off = the pages alone on black |
 | Cinema Screen Width / Distance | `gVrCinemaWidth`, `gVrCinemaDistance` | 3.6 m / 3.0 m | |
 
-Not in the menu: `gVrCinemaConvergence` (150 game units, the distance that sits on the screen plane).
+Not in the menu: `gVrCinemaConvergence` (0 = window stereo at the nearest visible depth, the default; a positive value
+pins the zero-parallax distance in game units, as round 1 did with 150).
+
+VR Settings > Display & Performance (standard section 9):
+
+| Setting | CVar | Default | What |
+| --- | --- | --- | --- |
+| Refresh Rate | `gVrRefreshRate` | 120 Hz | the highest offered rate at or below it is requested (next start) |
+| Step Down When Too Slow | `gVrRefreshAutoFallback` | on | two 10 s windows below 90% of the rate while worn: 120 -> 90 -> 72 for the rest of the run |
+| Resolution Scale | `gVrResolutionScale` | 1.0 | a multiplier on the 2160x2160 target (which is the runtime's recommendation when that is larger), 0.75-1.5, next start |
 
 ## Unattended testing (nothing worn)
 
 A headset on a desk reports `shouldRender=false`. By default the Frame build ends that frame empty at once.
 Frame-only switches live in `~/Documents/OoTVR/vr-diag.ini` (`deploy.sh --diag KEY=VAL`; the architecture doc lists
 them with their effects): `force_render`, `diag_yaw`, `diag_roll`, `dump_frame`, `dump_at`, `dump_when`, `dump_count`,
-`dump_every`, `diag_menu_open`, `timing`, `autostart`, `autostart_entrance`, `autostart_slot`, `autostart_new_game`, `diag_pause_at`,
+`dump_every`, `diag_menu_open`, `refresh_rate`, `resolution_scale`, `timing`, `autostart`, `autostart_entrance`, `autostart_slot`, `autostart_new_game`, `diag_pause_at`,
 `stereo_divisor` (1 to 4, overrides `gVrStereoDivisor` for the run, to measure 1 against 2).
 With `force_render` the game draws and submits from a synthetic head at 1.6 m (eyes +-32 mm) with the hands parked,
 and keeps being stepped. `autostart` skips the title and file select through the game's debug-save path (no save
@@ -192,6 +202,16 @@ tools/steam_frame/deploy.sh --diag force_render=1 --diag autostart_slot=1 --diag
 #    "pointer-beam pointer-dot" and a "pointer hand=1 hit=1" line
 tools/steam_frame/deploy.sh --diag force_render=1 --diag autostart_slot=1 --diag diag_menu_open=1 \
     --diag dump_at=5 --logcat 60 --pull-dumps scratchpad/dumps/pointer
+# 7. Round 2, 2D in front in the 3D cinema: the intro run of 2+3; "[vr] cinema convergence N (nearest visible N" lines;
+#    in vr-eye0/1 the dialogue box and text are at the same place in both eyes while every scene feature is shifted
+#    right in vr-eye1 relative to vr-eye0 (uncrossed: behind the screen plane), never left
+# 8. Round 2, pause over the world: run 4; vr-state.txt "layers=projection panel(over-world)", vr-eye0/1 show the room
+#    (Link's house: the flat-cinema band) and vr-panel.bmp the pages on black (black = transparent there). For the 3D
+#    world under the pages: --diag autostart=1 --diag diag_pause_at=12 --diag dump_at=16 --diag dump_when=panel
+#    (Kokiri Forest; vr-eye0/1 show the village from the synthetic head, not a captured picture)
+# 9. 120 Hz / 2160²: the log has "[vr] display: requesting 120 Hz", "[vr] eye size: recommended ..., runtime maximum ..., -> 2160x2160", and
+#    [vr-perf] period=8.3ms; vr-state.txt eye=2160x2160. With --diag refresh_rate=90 --diag resolution_scale=0.8 about
+#    90 Hz / 1728² for comparison. The fallback never fires with force_render (it counts worn time only)
 ```
 
 `--logcat 90` captures the run to `scratchpad/frame-logcat.txt` (git-ignored). Evidence lines to look for:
