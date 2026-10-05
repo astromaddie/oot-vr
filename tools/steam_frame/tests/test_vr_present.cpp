@@ -239,7 +239,108 @@ static void test_decide() {
     CHECK(vr_present_decide(in, nullptr, 0) == VR_PRESENT_CINEMA, "why may be null");
 }
 
+// P = M * Persp with M a look-at (rotation about Y by 30 degrees and a translation), row-vector.
+static void look_at_times(const float Pp[4][4], float out[4][4]) {
+    const float c = std::cos(0.5236f), sn = std::sin(0.5236f);
+    float M[4][4] = { { c, 0, -sn, 0 }, { 0, 1, 0, 0 }, { sn, 0, c, 0 }, { 120.0f, -40.0f, 300.0f, 1 } };
+    for (int r = 0; r < 4; r++)
+        for (int k = 0; k < 4; k++) {
+            float acc = 0.0f;
+            for (int j = 0; j < 4; j++) acc += M[r][j] * Pp[j][k];
+            out[r][k] = acc;
+        }
+}
+
+static void test_window_stereo() {
+    float P[4][4], PM[4][4];
+    perspective(60.0f, 4.0f / 3.0f, 10.0f, 12800.0f, P);
+    CHECK(near(vr_cinema_near_w(P), 10.0f, 1e-2f), "near plane of the game projection");
+    look_at_times(P, PM);
+    CHECK(near(vr_cinema_near_w(PM), 10.0f, 1e-2f), "near plane survives the look-at");
+    for (int r = 0; r < 4; r++)
+        for (int c = 0; c < 4; c++) PM[r][c] *= 2.0f; // N64 perspective scale: w units scale with it
+    CHECK(near(vr_cinema_near_w(PM), 20.0f, 2e-2f), "near plane in w units with a perspective scale");
+    float O[4][4] = {};
+    O[0][0] = O[1][1] = 0.01f;
+    O[2][2] = -0.001f;
+    O[3][3] = 1.0f;
+    CHECK(vr_cinema_near_w(O) == 0.0f, "ortho has no near plane");
+
+    // Converged at the nearest visible depth: nothing in the scene is in front of the screen plane.
+    const float disp = vr_cinema_ndc_disparity(0.063f, 0.55f, 3.6f);
+    const float nearest = 80.0f;
+    float L[4][4], R[4][4];
+    vr_cinema_eye_matrix(P, 0, disp, nearest, 1.0f, L);
+    vr_cinema_eye_matrix(P, 1, disp, nearest, 1.0f, R);
+    bool uncrossed = true;
+    for (float z : { -80.0f, -81.0f, -150.0f, -1000.0f, -12000.0f }) {
+        float l, r, w;
+        project(L, 3.0f, 0.0f, z, &l, &w);
+        project(R, 3.0f, 0.0f, z, &r, &w);
+        uncrossed &= (r - l) >= -1e-6f;
+    }
+    CHECK(uncrossed, "window stereo: every depth beyond the convergence is uncrossed");
+
+    float c = vr_cinema_convergence_step(0.0f, false, 80.0f, 10.0f);
+    CHECK(near(c, 80.0f), "first frame takes the nearest depth");
+    float c1 = vr_cinema_convergence_step(c, true, 40.0f, 10.0f);
+    CHECK(c1 < 61.0f && c1 >= 40.0f, "nearer content: fast");
+    float c2 = vr_cinema_convergence_step(40.0f, true, 400.0f, 10.0f);
+    CHECK(c2 > 40.0f && c2 < 60.0f, "farther content: slow");
+    CHECK(vr_cinema_convergence_step(40.0f, true, 2.0f, 10.0f) >= 10.0f, "never nearer than the near plane");
+    CHECK(near(vr_cinema_convergence_step(55.0f, true, 0.0f, 10.0f), 55.0f), "no vertex seen: hold");
+}
+
+static void test_eye_size() {
+    CHECK(vr_eye_size(1728, 4096, 1.0f, 2160) == 2160, "1728 recommended: up to 2160");
+    CHECK(vr_eye_size(2160, 4096, 1.0f, 2160) == 2160, "2160 recommended (SteamVR set to 2160): kept");
+    CHECK(vr_eye_size(2400, 4096, 1.0f, 2160) == 2400, "more than the target recommended: never scaled down");
+    CHECK(vr_eye_size(1728, 4096, 0.75f, 2160) == 1620, "user scale on top of the target");
+    CHECK(vr_eye_size(2160, 2500, 1.5f, 2160) == 2500, "clamped to the runtime maximum");
+    CHECK(vr_eye_size(1728, 4096, 9.0f, 2160) == 3240, "user scale clamped to 1.5");
+    CHECK(vr_eye_size(0, 4096, 1.0f, 2160) == 0, "no recommendation");
+}
+
+static void test_refresh() {
+    const float frame[] = { 72.0f, 90.0f, 120.0f, 144.0f };
+    CHECK(vr_refresh_pick(frame, 4, 120.0f) == 120.0f, "120 asked, 120 offered");
+    CHECK(vr_refresh_pick(frame, 4, 100.0f) == 90.0f, "highest offered at or below the setting");
+    CHECK(vr_refresh_pick(frame, 4, 60.0f) == 72.0f, "below everything: the lowest offered");
+    CHECK(vr_refresh_pick(frame, 0, 120.0f) == 0.0f, "nothing offered");
+    CHECK(vr_refresh_fallback(frame, 4, 120.0f) == 90.0f, "120 falls back to 90");
+    CHECK(vr_refresh_fallback(frame, 4, 90.0f) == 72.0f, "90 falls back to 72");
+    CHECK(vr_refresh_fallback(frame, 4, 72.0f) == 0.0f, "72 is the floor");
+    const float odd[] = { 80.0f, 120.0f };
+    CHECK(vr_refresh_fallback(odd, 2, 120.0f) == 80.0f, "no 90 or 72: the highest below");
+
+    VrRefreshGovernor g;
+    double t = 0.0;
+    bool fell = false;
+    // 120 Hz asked, 100 fps delivered (below 108): two 10 s windows, then the fallback.
+    for (int i = 0; i < 100 * 25 && !fell; i++, t += 0.01) {
+        fell = vr_refresh_governor_frame(&g, t, 120.0f, true);
+    }
+    CHECK(fell && t > 19.9 && t < 20.2, "fallback after two slow 10 s windows");
+    VrRefreshGovernor ok;
+    fell = false;
+    t = 0.0;
+    for (int i = 0; i < 120 * 40; i++, t += 1.0 / 119.0) {
+        fell |= vr_refresh_governor_frame(&ok, t, 120.0f, true);
+    }
+    CHECK(!fell, "no fallback at full rate");
+    VrRefreshGovernor off;
+    fell = false;
+    t = 0.0;
+    for (int i = 0; i < 100 * 40; i++, t += 0.01) {
+        fell |= vr_refresh_governor_frame(&off, t, 120.0f, (i / 900) % 2 == 0); // doffed every 9 s
+    }
+    CHECK(!fell, "windows count worn time only");
+}
+
 int main() {
+    test_window_stereo();
+    test_refresh();
+    test_eye_size();
     test_roll_free();
     test_cinema_views();
     test_stereo_split();
