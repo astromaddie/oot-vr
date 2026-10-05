@@ -129,6 +129,21 @@ void KaleidoScopeCall_Draw(PlayState* play) {
     if (R_PAUSE_MENU_MODE >= 3) {
         if (((play->pauseCtx.state >= 4) && (play->pauseCtx.state <= 7)) ||
             ((play->pauseCtx.state >= 11) && (play->pauseCtx.state <= 18))) {
+#ifdef SOH_STEAM_FRAME
+            // Steam Frame pause over the world: Play_Draw draws the world (and Link) while paused, and
+            // PlayerCall_Draw makes the player actor the current kaleido-area overlay. On the N64 the two
+            // share memory, so the kaleido draw below was skipped every tick, the pause vertices
+            // (pauseCtx->cursorVtx...) were never allocated, and KaleidoScope_Update crashed on them
+            // (SIGSEGV at 0xabab..., osMalloc's uninitialised fill). SoH's overlays are empty, so making
+            // the kaleido overlay current again is pure bookkeeping, exactly what KaleidoScopeCall_Update
+            // does each tick.
+            if (gKaleidoMgrCurOvl != kaleidoScopeOvl) {
+                if (gKaleidoMgrCurOvl != NULL) {
+                    KaleidoManager_ClearOvl(gKaleidoMgrCurOvl);
+                }
+                KaleidoManager_LoadOvl(kaleidoScopeOvl);
+            }
+#endif
             if (gKaleidoMgrCurOvl == kaleidoScopeOvl) {
                 sKaleidoScopeDrawFunc(play);
             }
