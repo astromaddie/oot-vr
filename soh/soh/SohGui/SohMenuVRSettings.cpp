@@ -1566,13 +1566,14 @@ void SohMenu::AddMenuVRSettings() {
         .Options(ComboboxOptions()
                      .DefaultIndex(120)
                      .ComboMap(vrRefreshRateOptions)
-                     .Tooltip("The headset asks for the highest rate it offers at or below this. Takes effect at "
-                              "the next start."));
-    AddWidget(perfPath, "Step Down When Too Slow", WIDGET_CVAR_CHECKBOX)
+                     .Tooltip("The game asks for the highest rate SteamVR offers at or below this. On the Frame SteamVR offers only "
+                              "this title's per-app rate (set it to 120 Hz in SteamVR's per-app video settings)."));
+    AddWidget(perfPath, "Advise When Too Slow", WIDGET_CVAR_CHECKBOX)
         .CVar("gVrRefreshAutoFallback")
         .Options(CheckboxOptions().DefaultValue(true).Tooltip(
-            "If the game holds less than 90% of the refresh rate for 20 seconds while you wear the headset, "
-            "it drops to the next rate (120, then 90, then 72) for the rest of the session. The log says when."));
+            "The game cannot change the headset's rate; SteamVR uses the per-app setting for this title. If the "
+            "game holds less than 90% of the rate for 20 seconds while worn, the log says once which per-app "
+            "rate to set instead."));
     AddWidget(perfPath, "Resolution Scale: %.2f", WIDGET_CVAR_SLIDER_FLOAT)
         .CVar("gVrResolutionScale")
         .Options(FloatSliderOptions()

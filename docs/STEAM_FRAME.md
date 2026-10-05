@@ -156,7 +156,7 @@ VR Settings > Display & Performance (standard section 9):
 | Setting | CVar | Default | What |
 | --- | --- | --- | --- |
 | Refresh Rate | `gVrRefreshRate` | 120 Hz | the highest offered rate at or below it is requested (next start) |
-| Step Down When Too Slow | `gVrRefreshAutoFallback` | on | two 10 s windows below 90% of the rate while worn: 120 -> 90 -> 72 for the rest of the run |
+| Advise When Too Slow | `gVrRefreshAutoFallback` | on | the app cannot change the Frame's rate (SteamVR offers only the title's per-app rate). Two 10 s windows below 90% while worn log once which per-app rate to set |
 | Resolution Scale | `gVrResolutionScale` | 1.0 | a multiplier on the 2160x2160 target (which is the runtime's recommendation when that is larger), 0.75-1.5, next start |
 
 ## Unattended testing (nothing worn)
@@ -211,7 +211,7 @@ tools/steam_frame/deploy.sh --diag force_render=1 --diag autostart_slot=1 --diag
 #    (Kokiri Forest; vr-eye0/1 show the village from the synthetic head, not a captured picture)
 # 9. 120 Hz / 2160²: the log has "[vr] display: requesting 120 Hz", "[vr] eye size: recommended ..., runtime maximum ..., -> 2160x2160", and
 #    [vr-perf] period=8.3ms; vr-state.txt eye=2160x2160. With --diag refresh_rate=90 --diag resolution_scale=0.8 about
-#    90 Hz / 1728² for comparison. The fallback never fires with force_render (it counts worn time only)
+#    90 Hz / 1728² for comparison. The rate advice never fires with force_render (it counts worn time only)
 ```
 
 `--logcat 90` captures the run to `scratchpad/frame-logcat.txt` (git-ignored). Evidence lines to look for:
