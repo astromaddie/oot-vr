@@ -12,6 +12,9 @@
 #include <cstring>
 #include <vr_interface.h>
 #include <fast/vr_openxr.h>
+#ifdef SOH_STEAM_FRAME
+#include "soh/Enhancements/steam-frame/VrGamepad.h"
+#endif
 
 namespace SohGui {
 
@@ -32,7 +35,87 @@ static const std::map<int32_t, const char*> vrViewModeOptions = {
 static const std::map<int32_t, const char*> vrTurnStyleOptions = {
     { 0, "Snap" },
     { 1, "Smooth" },
+    { 2, "Off" },
 };
+
+#ifdef SOH_STEAM_FRAME
+static void VrCameraComfort(WidgetInfo&) {
+    bool changed = false;
+    const char* profile = CVarGetString("gVrDefaultsProfile", "standard");
+    const bool personal = strcmp(profile, "frame_personal") == 0;
+    if (ImGui::BeginCombo("Defaults profile", personal ? "Frame personal" : "Standard")) {
+        for (const char* name : { "standard", "frame_personal" }) {
+            if (ImGui::Selectable(name, strcmp(profile, name) == 0)) {
+                CVarSetString("gVrDefaultsProfile", name); changed = true;
+                break;
+            }
+        }
+        ImGui::EndCombo();
+    }
+    if (ImGui::Button("Defaults##CameraComfort")) {
+        CVarSetInteger("gVrSnapTurnOn", 1);
+        CVarSetInteger("gVrTurnStyle", personal ? 1 : 0);
+        CVarSetFloat("gVrSnapTurnDegrees", 30.0f);
+        CVarSetFloat("gVrSmoothTurnSpeed", 120.0f);
+        CVarSetInteger("gVrFirstPerson", personal ? 0 : 1);
+        CVarSetFloat("gVrWorldScale", 35.0f);
+        CVarSetFloat("gVrHeightOffset", 0.0f);
+        CVarSetFloat("gVrHeadTranslation", 1.0f);
+        CVarSetFloat("gVrCameraCloser", 0.0f);
+        CVarSetFloat("gVrCameraLower", 0.0f);
+        CVarSetInteger("gVrSeated", 0);
+        changed = true;
+    }
+    float size = 3500.0f / (VR_IsInitialized() ? VR_GetWorldScale() : CVarGetFloat("gVrWorldScale", 35.0f));
+    if (ImGui::SliderFloat("World size", &size, 25.0f, 400.0f, "%.0f%%")) {
+        CVarSetFloat("gVrWorldScale", 3500.0f / size); changed = true;
+    }
+    struct Slider { const char* label; const char* key; float initial, lo, hi; };
+    for (const Slider& item : {
+        Slider{ "Height (m)", "gVrHeightOffset", 0, -1, 1 },
+        Slider{ "Head movement", "gVrHeadTranslation", 1, 0, 2 },
+        Slider{ "Camera closer", "gVrCameraCloser", 0, -1, 0.8f },
+        Slider{ "Camera lower", "gVrCameraLower", 0, -1, 1 } }) {
+        float value = CVarGetFloat(item.key, item.initial);
+        if (ImGui::SliderFloat(item.label, &value, item.lo, item.hi, "%.2f")) {
+            CVarSetFloat(item.key, value); changed = true;
+        }
+    }
+    bool seated = CVarGetInteger("gVrSeated", 0) != 0;
+    if (ImGui::Checkbox("Seated (retain standing calibration)", &seated)) {
+        CVarSetInteger("gVrSeated", seated); changed = true;
+    }
+    const char* side = CVarGetString("gVrSettingsPageSide", "right");
+    if (ImGui::BeginCombo("Settings panel side", side)) {
+        for (const char* name : { "right", "left", "centre" }) {
+            if (ImGui::Selectable(name, strcmp(side, name) == 0)) {
+                CVarSetString("gVrSettingsPageSide", name);
+                if (vr_menu_is_open()) { vr_menu_set_open(false); vr_menu_set_open(true); }
+                changed = true;
+                break;
+            }
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::TextWrapped("Hold left grip + right stick: left/right changes world size; up moves the camera "
+        "farther and higher, down moves it closer and lower. Release and centre the stick to resume. "
+        "First-person grips keep their actions; adjust size in this preview. Negative camera values move farther/higher.");
+    if (changed) CVarSave();
+}
+static void VrSnapAngle(WidgetInfo&) {
+    const float current = CVarGetFloat("gVrSnapTurnDegrees", 30.0f);
+    char label[24]; snprintf(label, sizeof(label), "%.0f degrees", current);
+    if (ImGui::BeginCombo("Snap angle", label)) {
+        for (int angle : { 15, 30, 45, 60, 90 }) {
+            snprintf(label, sizeof(label), "%d degrees", angle);
+            if (ImGui::Selectable(label, current == angle)) {
+                CVarSetFloat("gVrSnapTurnDegrees", (float)angle); CVarSave();
+            }
+        }
+        ImGui::EndCombo();
+    }
+}
+#endif
 
 static const std::map<int32_t, const char*> vrMenuButtonOptions = {
     { 0, "None" }, { 1, "Left Stick Click" }, { 2, "Right Stick Click" }, { 3, "X" },
@@ -99,6 +182,8 @@ struct VrInputDef {
 // the selector moves to the left stick, so START's default moves to the right stick click.
 // Keep in sync with padmgr.c (VrSelStickDefault).
 static int32_t VrInputDefault(const VrInputDef& d) {
+
+
     if (CVarGetInteger("gVrLeftHanded", 0)) {
         if (strcmp(d.cvar, "gVrBindSelLStickClick") == 0) {
             return 0;
@@ -128,6 +213,16 @@ static const VrInputDef sVrInputDefsClassic[] = {
     { "R Trigger", "gVrBindRTrigger", BTN_B },      { "R Grip", "gVrBindRGrip", 0 },
     { "A", "gVrBindRPrimary", BTN_A },              { "B", "gVrBindRSecondary", BTN_CDOWN },
     { "R Stick", "gVrBindRStickClick", 0 },         { "R Menu", "gVrBindRMenu", 0 },
+};
+#endif
+#ifdef SOH_STEAM_FRAME
+static const VrInputDef sVrInputDefsThirdPerson[] = {
+    { "L Trigger", "gVrBindTpLTrigger", BTN_Z }, { "L Grip (adjust)", "gVrBindTpLGrip", 0 },
+    { "X", "gVrBindTpLPrimary", BTN_CLEFT }, { "Y", "gVrBindTpLSecondary", BTN_CRIGHT },
+    { "L Stick", "gVrBindTpLStickClick", 0 }, { "L Menu", "gVrBindTpLMenu", 0 },
+    { "R Trigger", "gVrBindTpRTrigger", BTN_B }, { "R Grip", "gVrBindTpRGrip", 0 },
+    { "A", "gVrBindTpRPrimary", BTN_A }, { "B", "gVrBindTpRSecondary", BTN_B },
+    { "R Stick", "gVrBindTpRStickClick", 0 }, { "R Menu", "gVrBindTpRMenu", BTN_START },
 };
 #endif
 static const VrInputDef sVrInputDefsSelector[] = {
@@ -174,12 +269,21 @@ static const int kVrOcarinaInputCount = 20; // buttons + the 8 stick directions
 static bool sVrEditOcarina = false;
 
 static bool VrSelectorProfile() {
+#ifdef SOH_STEAM_FRAME
+    if (!CVarGetInteger("gVrFirstPerson", 1)) return false;
+#endif
     return CVarGetInteger("gVrItemSelect", 1) != 0;
 }
 static const VrInputDef* VrInputDefs() {
     if (sVrEditOcarina) {
         return sVrInputDefsOcarina;
     }
+#ifdef SOH_STEAM_FRAME
+    if (!CVarGetInteger("gVrFirstPerson", 1)) {
+        VrFrame_InitTpBindings();
+        return sVrInputDefsThirdPerson;
+    }
+#endif
     return VrSelectorProfile() ? sVrInputDefsSelector : sVrInputDefsClassic;
 }
 static int VrInputCount() {
@@ -401,6 +505,13 @@ static void VrInputBindings(WidgetInfo& info) {
         }
         return;
     }
+#ifdef SOH_STEAM_FRAME
+    if (!CVarGetInteger("gVrFirstPerson", 1)) {
+        ImGui::TextWrapped("Third-person gamepad: A action, B sword (also right trigger), left trigger Z-target, "
+            "right bumper shield, X/Y C-left/right, right stick Y C-up/down, Menu Start. "
+            "Left grip + right stick adjusts the camera. A custom left-grip binding disables that shortcut in play.");
+    } else
+#endif
     if (VrSelectorProfile()) {
         ImGui::TextWrapped("Editing the ITEM SELECTOR binding set. Both triggers are reserved: the "
                            "trigger of the hand holding an item uses that item. C buttons no "
@@ -558,7 +669,13 @@ void SohMenu::AddMenuVRSettings() {
             "doesn't, doffing never switches regardless."));
     AddWidget(generalPath, "VR View", WIDGET_CVAR_COMBOBOX)
         .CVar("gVrFirstPerson")
-        .PreFunc([](WidgetInfo& info) { info.isHidden = !CVarGetInteger("gVrEnabled", 1); })
+        .PreFunc([](WidgetInfo& info) {
+            info.isHidden = !CVarGetInteger("gVrEnabled", 1);
+#ifdef SOH_STEAM_FRAME
+            std::static_pointer_cast<ComboboxOptions>(info.options)->defaultIndex =
+                strcmp(CVarGetString("gVrDefaultsProfile", "standard"), "frame_personal") == 0 ? 0 : 1;
+#endif
+        })
         .Options(ComboboxOptions()
                      .DefaultIndex(1)
                      .ComboMap(vrViewModeOptions)
@@ -566,8 +683,8 @@ void SohMenu::AddMenuVRSettings() {
                               "follows your gaze, motion-control hands, snap turning. Third "
                               "Person: the stock game in stereo 3D - the view rides the game "
                               "camera exactly (position and facing, cutscenes included), you add "
-                              "head-look and lean on top, and the right stick is normal C-buttons "
-                              "(no snap turn; the game owns all camera movement). The camera's "
+                              "head-look and lean on top. Right-stick X turns the ordinary follow camera; "
+                              "Y retains C-up/down. Targeting and special cameras keep native controls. The camera's "
                               "up/down tilt is not applied - the horizon stays level with the real "
                               "world and you tilt your own head instead. Switch any time."));
     AddWidget(generalPath, "Auto Director Camera When Far From Link", WIDGET_CVAR_CHECKBOX)
@@ -651,16 +768,26 @@ void SohMenu::AddMenuVRSettings() {
                      .Tooltip("Turn the world with the right thumbstick, snap or smooth. In "
                               "first person the stick never presses C-buttons or items - those "
                               "live on the bindable VR Inputs and the item selector (menus and "
-                              "third person keep the stock C-stick)."));
+                              "special cameras keep their native controls)."));
     AddWidget(comfortPath, "Turning Style", WIDGET_CVAR_COMBOBOX)
         .CVar("gVrTurnStyle")
-        .PreFunc([](WidgetInfo& info) { info.isHidden = !CVarGetInteger("gVrSnapTurnOn", 1); })
+        .PreFunc([](WidgetInfo& info) {
+            info.isHidden = !CVarGetInteger("gVrSnapTurnOn", 1);
+#ifdef SOH_STEAM_FRAME
+            std::static_pointer_cast<ComboboxOptions>(info.options)->defaultIndex =
+                strcmp(CVarGetString("gVrDefaultsProfile", "standard"), "frame_personal") == 0 ? 1 : 0;
+#endif
+        })
         .Options(ComboboxOptions()
                      .DefaultIndex(0)
                      .ComboMap(vrTurnStyleOptions)
                      .Tooltip("Snap: flick the stick to rotate in discrete steps - the most "
                               "comfortable option. Smooth: hold the stick to rotate "
                               "continuously, like turning in a flat game."));
+#ifdef SOH_STEAM_FRAME
+    AddWidget(comfortPath, "Snap Angle", WIDGET_CUSTOM).CustomFunction(VrSnapAngle)
+        .PreFunc([](WidgetInfo& info) { info.isHidden = !CVarGetInteger("gVrSnapTurnOn", 1) || CVarGetInteger("gVrTurnStyle", 0) != 0; });
+#else
     AddWidget(comfortPath, "Snap Turn Angle: %.0f deg", WIDGET_CVAR_SLIDER_FLOAT)
         .CVar("gVrSnapTurnDegrees")
         .PreFunc([](WidgetInfo& info) {
@@ -669,10 +796,11 @@ void SohMenu::AddMenuVRSettings() {
         .Options(FloatSliderOptions()
                      .Min(10.0f)
                      .Max(180.0f)
-                     .DefaultValue(45.0f)
+                     .DefaultValue(30.0f)
                      .Step(5.0f)
                      .Format("%.0f")
                      .Tooltip("Degrees rotated per flick of the stick."));
+#endif
     AddWidget(comfortPath, "Smooth Turn Speed: %.0f deg/s", WIDGET_CVAR_SLIDER_FLOAT)
         .CVar("gVrSmoothTurnSpeed")
         .PreFunc([](WidgetInfo& info) {
@@ -719,6 +847,9 @@ void SohMenu::AddMenuVRSettings() {
             "Disable to use the fixed World Scale slider instead (one true world size regardless "
             "of who is playing). Needs a runtime with floor calibration; without one the slider "
             "applies either way."));
+#ifdef SOH_STEAM_FRAME
+    AddWidget(comfortPath, "Camera and Scale", WIDGET_CUSTOM).CustomFunction(VrCameraComfort);
+#else
     AddWidget(comfortPath, "World Scale: %.1f units/m", WIDGET_CVAR_SLIDER_FLOAT)
         .CVar("gVrWorldScale")
         .PreFunc([](WidgetInfo& info) { info.isHidden = CVarGetInteger("gVrAutoWorldScale", 1); })
@@ -731,6 +862,7 @@ void SohMenu::AddMenuVRSettings() {
                      .Tooltip("Game units per real-world meter. Higher makes the world feel smaller "
                               "(and physical movements cover more in-game distance); lower makes "
                               "everything tower over you. Applies live."));
+#endif
     AddWidget(comfortPath, "Eye Height Offset: %.1f", WIDGET_CVAR_SLIDER_FLOAT)
         .CVar("gVrHeadHeightOffset")
         .Options(FloatSliderOptions()

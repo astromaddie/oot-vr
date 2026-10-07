@@ -1577,6 +1577,12 @@ s32 Camera_Free(Camera* camera) {
     return 1;
 }
 
+#ifdef SOH_STEAM_FRAME
+static Camera* sVrManualCamera;
+static s16 sVrManualYaw;
+static s32 Camera_VrFrameFollow(Camera* camera);
+#endif
+
 s32 Camera_Normal1(Camera* camera) {
     if (CVarGetInteger(CVAR_SETTING("FreeLook.Enabled"), 0) && SetCameraManual(camera) == 1) {
         Camera_Free(camera);
@@ -1753,6 +1759,12 @@ s32 Camera_Normal1(Camera* camera) {
             Camera_CalcDefaultPitch(camera, atEyeNextGeo.pitch, norm1->pitchTarget, anim->slopePitchAdj);
     }
 
+#ifdef SOH_STEAM_FRAME
+    if (sVrManualCamera == camera) {
+        if (Camera_VrFrameFollow(camera) && !VR_GetFirstPerson()) eyeAdjustment.yaw = sVrManualYaw;
+        else sVrManualCamera = NULL;
+    }
+#endif
     // set eyeAdjustment pitch from 79.65 degrees to -85 degrees
     if (eyeAdjustment.pitch > 0x38A4) {
         eyeAdjustment.pitch = 0x38A4;
@@ -2845,6 +2857,12 @@ s32 Camera_Jump3(Camera* camera) {
         eyeDiffSph.pitch = Camera_CalcDefaultPitch(camera, eyeNextAtOffset.pitch, jump3->pitchTarget, 0);
     }
 
+#ifdef SOH_STEAM_FRAME
+    if (sVrManualCamera == camera) {
+        if (Camera_VrFrameFollow(camera) && !VR_GetFirstPerson()) eyeDiffSph.yaw = sVrManualYaw;
+        else sVrManualCamera = NULL;
+    }
+#endif
     if (eyeDiffSph.pitch > OREG(5)) {
         eyeDiffSph.pitch = OREG(5);
     }
@@ -7537,6 +7555,133 @@ static s32 sOOBTimer = 0;
 static Vec3f sVrGameEye, sVrGameAt, sVrGameUp;
 static f32 sVrGameFov = 60.0f;
 static s32 sVrGameViewValid = false;
+
+// Native camera ownership stays with OoT. Only ordinary free-follow cameras accept manual yaw.
+static PlayState* sVrFramePlay;
+static s32 sVrFollowPreview;
+static Vec3f sVrPreviousEye, sVrCurrentEye, sVrPreviousAt, sVrCurrentAt;
+static s32 Camera_VrFrameFollow(Camera* camera) {
+    PlayState* play = camera->play;
+    Player* player = camera->player;
+    if (camera->mode != CAM_MODE_NORMAL && camera->mode != CAM_MODE_STILL) return false;
+    if (play->activeCamera != CAM_ID_MAIN || play->csCtx.state != CS_STATE_IDLE ||
+        play->transitionMode != TRANS_MODE_OFF || play->msgCtx.msgMode != MSGMODE_NONE ||
+        gSaveContext.gameMode != GAMEMODE_NORMAL || player == NULL || player->focusActor != NULL ||
+        (player->stateFlags1 & PLAYER_STATE1_ON_HORSE) || Play_InCsMode(play)) return false;
+    switch (camera->setting) {
+        case CAM_SET_NORMAL0: case CAM_SET_NORMAL1: case CAM_SET_NORMAL2:
+        case CAM_SET_NORMAL3: case CAM_SET_NORMAL4:
+        case CAM_SET_DUNGEON0: case CAM_SET_DUNGEON1: case CAM_SET_DUNGEON2:
+            return sCameraSettings[camera->setting].cameraModes[camera->mode].funcIdx == CAM_FUNC_NORM1 ||
+                   sCameraSettings[camera->setting].cameraModes[camera->mode].funcIdx == CAM_FUNC_JUMP3;
+        default: return false;
+    }
+}
+
+static void Camera_VrFrameOrbit(Vec3f* eye, const Vec3f* at, s16 yaw) {
+    const f32 dx = eye->x - at->x, dz = eye->z - at->z;
+    eye->x = at->x + Math_CosS(yaw) * dx + Math_SinS(yaw) * dz;
+    eye->z = at->z - Math_SinS(yaw) * dx + Math_CosS(yaw) * dz;
+}
+
+// Called by XR once per predicted display frame. No actor/simulation update occurs here.
+static void Camera_VrFrameDisplay(float degrees, float alpha) {
+    PlayState* play = sVrFramePlay;
+    if (play == NULL || VR_GetFirstPerson() || !sVrFollowPreview) return;
+    Camera* camera = GET_ACTIVE_CAM(play);
+    const s32 settings = VR_MenuIsOpen();
+    const s32 paused = play->pauseCtx.state != 0;
+    if (!settings && paused) return;
+    if (!settings && !Camera_VrFrameFollow(camera)) return;
+    if (degrees != 0.0f && !settings && !paused) {
+        const s16 yaw = (s16)(-degrees * (32768.0f / 180.0f));
+        Camera_VrFrameOrbit(&camera->eye, &camera->at, yaw);
+        Camera_VrFrameOrbit(&camera->eyeNext, &camera->at, yaw);
+        VecSph goal;
+        OLib_Vec3fDiffToVecSphGeo(&goal, &camera->at, &camera->eyeNext);
+        sVrManualCamera = camera;
+        sVrManualYaw = goal.yaw;
+        if (sCameraSettings[camera->setting].cameraModes[camera->mode].funcIdx == CAM_FUNC_NORM1) {
+            Normal1Anim* anim = &((Normal1*)camera->paramData)->anim;
+            anim->swingYawTarget = goal.yaw;
+            anim->swing.unk_16 += yaw;
+            anim->startSwingTimer = -1;
+        } else {
+            ((Jump3*)camera->paramData)->anim.swing.unk_16 += yaw;
+        }
+        Camera_VrFrameOrbit(&sVrPreviousEye, &sVrPreviousAt, yaw);
+        Camera_VrFrameOrbit(&sVrCurrentEye, &sVrCurrentAt, yaw);
+        camera->inputDir.y += yaw;
+        camera->camDir.y += yaw;
+        play->camX += yaw;
+        Camera_BGCheck(camera, &camera->at, &camera->eye);
+        sVrGameEye = camera->eye;
+        sVrGameAt = camera->at;
+    }
+    if (settings) alpha = 1.0f;
+    Vec3f source = {
+        sVrPreviousEye.x + alpha * (sVrCurrentEye.x - sVrPreviousEye.x),
+        sVrPreviousEye.y + alpha * (sVrCurrentEye.y - sVrPreviousEye.y),
+        sVrPreviousEye.z + alpha * (sVrCurrentEye.z - sVrPreviousEye.z) };
+    Vec3f target = {
+        sVrPreviousAt.x + alpha * (sVrCurrentAt.x - sVrPreviousAt.x),
+        sVrPreviousAt.y + alpha * (sVrCurrentAt.y - sVrPreviousAt.y),
+        sVrPreviousAt.z + alpha * (sVrCurrentAt.z - sVrPreviousAt.z) };
+    const float e[3] = { source.x, source.y, source.z };
+    const float a[3] = { target.x, target.y, target.z };
+    float result[3];
+    VR_CameraOrigin(e, a, result);
+    Vec3f eye = { result[0], result[1], result[2] }, hit;
+    CollisionPoly* poly;
+    s32 bgId;
+    // The requested signed values remain saved; only actual line-of-sight obstruction limits the eye.
+    if (BgCheck_CameraLineTest1(&play->colCtx, &target, &eye, &hit, &poly, 1, 1, 1, -1, &bgId)) {
+        eye = hit;
+        // Pull just inside the visible segment rather than leaving the eye exactly on the wall.
+        eye.x += (target.x - eye.x) * 0.02f;
+        eye.y += (target.y - eye.y) * 0.02f;
+        eye.z += (target.z - eye.z) * 0.02f;
+    }
+    VR_SetCameraAnchor(eye.x, eye.y, eye.z);
+    VecSph bearing;
+    OLib_Vec3fDiffToVecSphGeo(&bearing, &source, &target);
+    VR_SetCameraYaw(bearing.yaw);
+    float head[3], fwd[3], up[3];
+    VR_GetCameraPose(head, fwd, up);
+    Vec3f finalEye = { head[0], head[1], head[2] };
+    if (BgCheck_CameraLineTest1(&play->colCtx, &target, &finalEye, &hit, &poly, 1, 1, 1, -1, &bgId)) {
+        VR_SetCameraAnchor(eye.x + hit.x - finalEye.x + (target.x - hit.x) * 0.02f,
+                           eye.y + hit.y - finalEye.y + (target.y - hit.y) * 0.02f,
+                           eye.z + hit.z - finalEye.z + (target.z - hit.z) * 0.02f);
+    }
+}
+
+void Camera_VrFrameReset(void) {
+    sVrFramePlay = NULL;
+    sVrManualCamera = NULL;
+    sVrFollowPreview = false;
+}
+
+void Camera_VrFrameRegister(PlayState* play) {
+    const s32 newPlay = sVrFramePlay != play;
+    sVrFramePlay = play;
+    if (!VR_MenuIsOpen() && play->pauseCtx.state == 0) {
+        Camera* camera = GET_ACTIVE_CAM(play);
+        const s32 follow = Camera_VrFrameFollow(camera);
+        sVrPreviousEye = sVrCurrentEye; sVrPreviousAt = sVrCurrentAt;
+        sVrCurrentEye = camera->eye; sVrCurrentAt = camera->at;
+        if (newPlay || !sVrFollowPreview || !follow) {
+            sVrPreviousEye = sVrCurrentEye; sVrPreviousAt = sVrCurrentAt;
+            sVrManualCamera = NULL;
+        }
+        sVrFollowPreview = follow;
+    }
+    VR_SetFrameCameraCallback(Camera_VrFrameDisplay,
+        !VR_GetFirstPerson() && sVrFollowPreview && play->pauseCtx.state == 0,
+        VR_GetPresentation() == VR_PRESENT_MODE_IMMERSIVE && (sVrFollowPreview || VR_GetFirstPerson()));
+    // Fresh CPU culling while the game update is frozen, as well as display-rate eye rendering.
+    if (VR_MenuIsOpen()) Camera_VrFrameDisplay(0.0f, 1.0f);
+}
 
 // Steam Frame: the pause panel draws (and captures) the frozen world with the game's own camera.
 void Camera_VrFrameApplyGameView(PlayState* play) {

@@ -210,6 +210,11 @@ Gfx* Play_SetFog(PlayState* play, Gfx* gfx) {
 }
 
 void Play_Destroy(GameState* thisx) {
+#ifdef SOH_STEAM_FRAME
+    extern void Camera_VrFrameReset(void);
+    Camera_VrFrameReset();
+    VR_SetFrameCameraCallback(NULL, false, false);
+#endif
     PlayState* play = (PlayState*)thisx;
     Player* player = GET_PLAYER(play);
 
@@ -685,6 +690,9 @@ void Play_Init(GameState* thisx) {
 }
 
 void Play_Update(PlayState* play) {
+#ifdef SOH_STEAM_FRAME
+    if (VR_IsInitialized() && VR_MenuIsOpen()) return;
+#endif
     Input* input = play->state.input;
     s32 isPaused;
     s32 pad1;
@@ -1325,13 +1333,13 @@ skip:
 }
 
 void Play_DrawOverlayElements(PlayState* play) {
-    if ((play->pauseCtx.state != 0) || (play->pauseCtx.debugState != 0)) {
+    if (((play->pauseCtx.state != 0) || (play->pauseCtx.debugState != 0)) && !VR_MenuIsOpen()) {
 #ifdef SOH_STEAM_FRAME
         // Steam Frame pause over the world: the kaleido pages are drawn into POLY_OPA (vanilla), which now
         // goes to the eye pass with the world, where the VR matrices replace their projection and they
         // vanish. Cut them out of POLY_OPA into a sub-list: the eye pass branches over it, the overlay list
         // (the panel pass, graph.c) calls it, in the original order (before the HUD and the text).
-        if (VR_IsInitialized() && (play->pauseCtx.state != 0) && CVarGetInteger("gVrPauseWorld", 1)) {
+        if (VR_IsInitialized() && (play->pauseCtx.state != 0) && (CVarGetInteger("gVrPauseWorld", 1) || VR_MenuIsOpen())) {
             OPEN_DISPS(play->state.gfxCtx);
             Gfx* vrSkip = POLY_OPA_DISP++; // filled in below: branch over the pages
             Gfx* vrPages = POLY_OPA_DISP;
@@ -1537,6 +1545,12 @@ void Play_Draw(PlayState* play) {
             VR_SetCameraYaw(vrCam->camDir.y);
         }
     }
+#ifdef SOH_STEAM_FRAME
+    if (VR_IsInitialized()) {
+        extern void Camera_VrFrameRegister(PlayState* play);
+        Camera_VrFrameRegister(play);
+    }
+#endif
     // #endregion
 
     gSegments[4] = VIRTUAL_TO_PHYSICAL(play->objectCtx.status[play->objectCtx.mainKeepIndex].segment);
@@ -1568,13 +1582,13 @@ void Play_Draw(PlayState* play) {
         POLY_XLU_DISP = Play_SetFog(play, POLY_XLU_DISP);
 
 #ifdef SOH_STEAM_FRAME
-        if (VR_IsInitialized() && play->pauseCtx.state != 0) {
+        if (VR_IsInitialized() && (play->pauseCtx.state != 0 || VR_MenuIsOpen())) {
             // Camera_Update does not run while paused. With the world under the pause panel
             // (gVrPauseWorld) the CPU view follows the live head for culling, or keeps the game's own
             // camera on the cinema screen; the old flat panel captures the game's own camera.
             extern void Camera_VrFrameApplyGameView(PlayState * play);
             extern void Camera_VrFrameApplyHeadView(PlayState * play);
-            if (CVarGetInteger("gVrPauseWorld", 1) && VR_GetPresentation() == VR_PRESENT_MODE_IMMERSIVE) {
+            if ((CVarGetInteger("gVrPauseWorld", 1) || VR_MenuIsOpen()) && VR_GetPresentation() == VR_PRESENT_MODE_IMMERSIVE) {
                 Camera_VrFrameApplyHeadView(play);
             } else {
                 Camera_VrFrameApplyGameView(play);
@@ -1689,7 +1703,7 @@ void Play_Draw(PlayState* play) {
         // Steam Frame pause over the world: no captured backdrop; the world is drawn as usual (from its
         // frozen state) into the eyes, the pages go to the panel (graph.c).
         if (R_PAUSE_MENU_MODE == 3 && VR_IsInitialized() && play->pauseCtx.state != 0 &&
-            CVarGetInteger("gVrPauseWorld", 1)) {
+            (CVarGetInteger("gVrPauseWorld", 1) || VR_MenuIsOpen())) {
             // fall through to the world
         } else
 #endif

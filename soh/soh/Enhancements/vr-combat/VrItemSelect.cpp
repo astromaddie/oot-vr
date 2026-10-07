@@ -773,12 +773,20 @@ extern "C" void VrItemSelect_Draw(void) {
     CLOSE_DISPS(gPlayState->state.gfxCtx);
 }
 
+static bool SelectorBindingsInView() {
+#ifdef SOH_STEAM_FRAME
+    return VR_GetFirstPerson();
+#else
+    return true;
+#endif
+}
+
 extern "C" bool VrItemSelect_ConsumesInput(int32_t vrHand, uint16_t vrBtnMask) {
     // The configured selector input is DEDICATED while the feature is enabled: padmgr never
     // feeds it to the button bindings, so the opening click can't leak its normal action.
     // Except while the ocarina is up — the selector can't open then, so its input goes back
     // to the (ocarina) bindings like any other.
-    if (!CVarGetInteger("gVrItemSelect", 1) || OcarinaInPlay()) {
+    if (!CVarGetInteger("gVrItemSelect", 1) || !SelectorBindingsInView() || OcarinaInPlay()) {
         return false;
     }
     return vrHand == SelectorHand() && (vrBtnMask & SelectorMask()) != 0;
@@ -794,7 +802,7 @@ extern "C" bool VrItemSelect_SwapConsumed(int32_t vrHand, uint16_t vrBtnMask) {
     // so the swap doesn't also recenter the camera or flash a shield stance. Stands down
     // during ocarina play like every other selector reservation.
     (void)vrHand;
-    if (!CVarGetInteger("gVrItemSelect", 1) || OcarinaInPlay()) {
+    if (!CVarGetInteger("gVrItemSelect", 1) || !SelectorBindingsInView() || OcarinaInPlay()) {
         return false;
     }
     return (vrBtnMask & SwapMask()) != 0 && SwapChordHeld();
@@ -881,7 +889,7 @@ extern "C" bool VrItemSelect_TriggerConsumed(int32_t vrHand, uint16_t vrBtnMask)
     // everywhere keeps the meaning of a trigger squeeze the same in every view. The one
     // exception is the ocarina interface, whose binding set puts NOTES on the triggers.
     (void)vrHand;
-    return CVarGetInteger("gVrItemSelect", 1) && !OcarinaInPlay() && (vrBtnMask & VR_BTN_TRIGGER) != 0;
+    return CVarGetInteger("gVrItemSelect", 1) && SelectorBindingsInView() && !OcarinaInPlay() && (vrBtnMask & VR_BTN_TRIGGER) != 0;
 }
 
 static void RegisterVrItemSelect() {

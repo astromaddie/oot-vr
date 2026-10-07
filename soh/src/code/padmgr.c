@@ -309,6 +309,10 @@ void PadMgr_ProcessInputs(PadMgr* padMgr) {
     PadMgr_UnlockPadData(padMgr);
 }
 
+#ifdef SOH_STEAM_FRAME
+#include "soh/Enhancements/steam-frame/VrGamepad.h"
+#endif
+
 void PadMgr_HandleRetraceMsg(PadMgr* padMgr) {
     s32 i;
     OSMesgQueue* queue = PadMgr_LockSerialMesgQueue(padMgr);
@@ -446,6 +450,10 @@ void PadMgr_HandleRetraceMsg(PadMgr* padMgr) {
             static const u16 sVrBtnMasks[6] = { VR_BTN_TRIGGER,   VR_BTN_GRIP,       VR_BTN_PRIMARY,
                                                 VR_BTN_SECONDARY, VR_BTN_THUMBCLICK, VR_BTN_MENU };
             s32 vrSelProfile = CVarGetInteger("gVrItemSelect", 1);
+#ifdef SOH_STEAM_FRAME
+            VrFrame_InitTpBindings();
+            if (!VR_GetFirstPerson()) vrSelProfile = false;
+#endif
             s32 vrOcarina = VrOcarina_InPlay();
             s32 vrHandIdx, vrBtnIdx;
             for (vrHandIdx = 0; vrHandIdx < 2; vrHandIdx++) {
@@ -475,6 +483,11 @@ void PadMgr_HandleRetraceMsg(PadMgr* padMgr) {
                                                                      VrSelDefault(vrHandIdx, vrBtnIdx))
                                                     : CVarGetInteger(sVrBindCvars[vrHandIdx][vrBtnIdx],
                                                                      sVrBindDefaults[vrHandIdx][vrBtnIdx]);
+#ifdef SOH_STEAM_FRAME
+                        if (!vrOcarina && !VR_GetFirstPerson() && VR_IsFrameProfile()) {
+                            mapped = CVarGetInteger(sVrTpBindings[vrHandIdx][vrBtnIdx], mapped);
+                        }
+#endif
                         // Mask to the real pad bits (drops the PC-only modifier bits if selected).
                         vrPad->button |= (u16)(mapped & 0xFFFF);
                     }
@@ -548,8 +561,10 @@ void PadMgr_HandleRetraceMsg(PadMgr* padMgr) {
         if (!vrOcaStickClaimed[VR_HAND_RIGHT] && (VR_IsFlatScreen() || !VR_GetFirstPerson())) {
             if (ry > 0.5f) vrPad->button |= BTN_CUP;
             if (ry < -0.5f) vrPad->button |= BTN_CDOWN;
-            if (rx > 0.5f) vrPad->button |= BTN_CRIGHT;
-            if (rx < -0.5f) vrPad->button |= BTN_CLEFT;
+            if (!VR_IsFollowCamera() || VR_IsFlatScreen() || VrOcarina_InPlay()) {
+                if (rx > 0.5f) vrPad->button |= BTN_CRIGHT;
+                if (rx < -0.5f) vrPad->button |= BTN_CLEFT;
+            }
         }
 
 #ifdef SOH_STEAM_FRAME

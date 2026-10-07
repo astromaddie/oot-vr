@@ -37,4 +37,16 @@ echo "== [vr-perf] line format (sfvr's formatter, the Frame stage names)"
 "$cxx" -std=c++17 -Wall -Wextra -I"$sfvr/include" "$here/test_vr_perf.cpp" "$out/sfvr_perf.o" -o "$out/test_vr_perf"
 "$out/test_vr_perf"
 
+echo "== camera offsets and live grip adjustment (production sfvr modules)"
+for unit in adjust camera; do
+    "$cc" -std=c11 -Wall -Wextra -I"$sfvr/include" "$here/test_sfvr_$unit.c" \
+        "$sfvr/src/sfvr_$unit.c" -lm -o "$out/test_$unit"
+    "$out/test_$unit"
+done
+
+echo "== third-person binding migration (production adapter)"
+"$cc" -std=c11 -Wall -Wextra -I"$lus/include" -I"$root/soh" \
+    "$here/test_vr_gamepad.c" -o "$out/test_vr_gamepad"
+"$out/test_vr_gamepad"
+
 echo "all host tests passed"

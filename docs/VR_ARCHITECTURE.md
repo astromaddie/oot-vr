@@ -261,7 +261,7 @@ not listed.
 
 | Standard key | CVar | Notes |
 | --- | --- | --- |
-| `turn_mode`, `snap_angle` | `gVrTurnStyle`, `gVrSnapTurnDegrees` | default snap 45 (the standard suggests 30; not changed) |
+| `turn_mode`, `snap_angle` | `gVrTurnStyle`, `gVrSnapTurnDegrees` | Frame: snap / smooth / off, default snap 30; angles 15/30/45/60/90 |
 | `smooth_turn_speed` | `gVrSmoothTurnSpeed` | 120 deg/s |
 | `dominant_hand` | `gVrLeftHanded` | |
 | `resolution_scale` | `gVrResolutionScale` | Frame: a multiplier on the ~2160 target (0.75-1.5, default 1.0); Quest: times the recommended size. Next start |
@@ -269,11 +269,54 @@ not listed.
 | (per-app rate advice) | `gVrRefreshAutoFallback` | Frame, default on |
 | (pause over the world) | `gVrPauseWorld`, `gVrPauseDim` | Frame, default on / 0.35 |
 | `hud_distance` | `gVrHudDistance` | |
-| `height` / `world_scale` | `gVrAutoWorldScale`, `gVrWorldScale` | |
+| `world_scale` | `gVrAutoWorldScale`, `gVrWorldScale` | 35 units/m baseline; apparent size 3500/units, UI 25-400%; saved manual scale wins |
+| `height_offset`, `seated`, `head_translation` | `gVrHeightOffset`, `gVrSeated`, `gVrHeadTranslation` | -1..1 m, retained `gVrStandingHeight`, 0..2; eye IPD unchanged |
+| `camera_closer`, `camera_lower` | `gVrCameraCloser`, `gVrCameraLower` | -1..0.8 / -1..1, native zero; requested values retained through native LOS collision |
+| `defaults_profile` | `gVrDefaultsProfile` | persistent string `standard` / `frame_personal`; personal Defaults = smooth 120 and third person; saved choices win on load |
+| `settings_page_side` | `gVrSettingsPageSide` | `right` / `left` / `centre`; yaw-only world lock, inner edge 10 degrees; existing panel distance retained |
 | `force_render`, `diag_yaw`, `dump_frame`, `timing` | `vr-diag.ini` | not CVars |
 | `cutscenes` (`3D CINEMA` / `IMMERSIVE`) | `gVrCutsceneMode` | Frame: 0 = 3D cinema (default), 1 = immersive |
 | (pre-rendered rooms on the cinema) | `gVrPrerenderCinema` | Frame, default on |
 | (cinema depth, size, distance) | `gVrCinemaDepth`, `gVrCinemaWidth`, `gVrCinemaDistance`, `gVrCinemaConvergence` | 0.55, 3.6 m, 3.0 m, 150 game units (the zero-parallax distance; menu-less) |
+
+### Frame camera and gamepad adapter
+
+Ordinary third-person follow (NORMAL0-4 / DUNGEON0-2, normal or still modes) uses
+right-stick X for comfort turning and Y for C-up/down. Native yaw handoff rotates
+`eye`, `eyeNext`, the persistent yaw goal, and `inputDir`; NORM1 and the NORMAL3
+swimming JUMP3 retain their distance, pitch/water and collision logic. Targeting,
+battle, horses, instruments, fixed/pre-rendered cameras and scripted shots retain
+native control. Native camera interpolation is applied before signed offsets and
+actual line-of-sight collision, including the current head position.
+
+Frame third-person controls: A = action, B and right trigger = sword, left trigger
+= Z-target, right bumper = shield, X/Y = C-left/right, right-stick Y = C-up/down,
+Menu = Start. `gVrBindTp*` is an independent profile: one-time migration changes
+only the exact old L-grip shield and face-B C-down defaults; custom masks and all
+`gVrBindSel*` / `gVrBindOca*` values remain intact. A custom TP left-grip binding
+keeps its game action and disables the modifier in play.
+
+Physical left squeeze + physical right stick runs canonical sfvr adjustment
+before turning/game input: 20% deadzone, proportional 1.5x size/s, signed camera
+0.25/s, predicted-display delta capped at 1/30 s, neutral required after release
+or focus loss. Menu/View take priority and left-stick movement stays untouched.
+The Frame profile exposes `squeeze/value`, independently from its bumper/trigger;
+unsupported `squeeze/click` is not suggested. First-person grips retain gameplay
+ownership; size adjustment is available in the settings preview.
+
+Settings freeze Play_Update and held-object physics, retain the last gameplay
+camera, and rerender the retained world display list with current eye poses and
+settings on every display frame. The existing settings panel and pointer share
+one side-positioned pose. Closing settings restores the pause overview. Widgets
+read current CVars each draw, including changes from the grip shortcut.
+
+Verification: host binding/system/presentation/diagnostic suites plus canonical
+sfvr adjustment and camera tests, and the production TP migration test. The
+camera/control migration is **headset-unverified**: no rendered/device run was
+performed for this change. Wear checks: all four modifier directions; release
+while deflected; pause/settings/resume and recentre; TP target/shield/sword/C-items;
+FP item selector and ocarina notes; swimming, horses, doors and cinema; signed
+camera offsets against walls; seated scale and head-gain/IPD at 0/1/2.
 
 ## 8. Status
 

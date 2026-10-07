@@ -339,7 +339,7 @@ void Graph_Update(GraphicsContext* gfxCtx, GameState* gameState) {
         // Steam Frame pause: the (frozen) world stays in the eyes from the live head pose, dimmed, and
         // the overlay list (the kaleido pages) goes alone to the panel in front (gVrPauseWorld).
         const s32 vrPauseWorld =
-            gPlayState != NULL && gPlayState->pauseCtx.state != 0 && CVarGetInteger("gVrPauseWorld", 1);
+            gPlayState != NULL && gPlayState->pauseCtx.state != 0 && (CVarGetInteger("gVrPauseWorld", 1) || VR_MenuIsOpen());
         VR_SetPanelOverWorld(vrPauseWorld);
         // Steam Frame 3D cinema: the text, title cards and HUD of a cutscene belong on its screen,
         // drawn into the eye pass with the picture (zero parallax), not on the head-locked HUD quad.
