@@ -258,6 +258,31 @@ missing launcher icon, with or without these changes (see above). The native par
   reprojected in between. Valve's floor is 72 fps at 1728x1728; whether this counts is a question for a wear session.
 - Focus loss does not pause the game or audio yet (standard section 0); input just goes inactive.
 - Depth submission, foveation, the Frame render models: not done.
-- The snap turn default is 45 degrees (the Quest port's), the standard suggests 30. Not touched.
+- Frame fresh defaults now use snap 30 degrees; existing explicit turn choices remain preserved (camera migration below).
 - The VR Inputs editor and the settings text still use Touch button names.
 - `autostart` lands in Kokiri Forest with the debug save and child Link; other scenes need `autostart_entrance`.
+
+## Camera migration delivery (2026-10-07)
+
+The migration source is committed as `45ae9961201c9887e669db549988bb1b136ad983`
+with libultraship `17b04722db1c237bf16e516a96e0a4d3f946b743`. The successful
+Frame APK records the earlier dirty `aba1899` build state; its compiled changes
+were subsequently committed unchanged, with only the submodule repository URL
+altered later. ARM64 libraries, dependencies, packaged soh.o2r and Android v2
+signature were verified locally.
+
+Installed `~/devkit-game/OoTVR/OoT-VR.apk` SHA-256:
+`9f86ad21122934842968d8c63ce87ca5ed9e13f1fa105e44dead176930019b51`.
+The booked, idle Steam-title launch (raw app ID 2485753461) reached OpenXR
+IDLE -> READY -> SYNCHRONIZED at 120 Hz. Only the task's Lepton process was
+stopped. The startup-written settings file was restored; its hash and both
+Save/*.sav hashes match the pre-run manifest.
+
+| Current increment | Evidence level |
+| --- | --- |
+| ARM64 package and existing Steam-title boot | verified unattended |
+| New paused-camera preview, physical remaps/modifier, tracked recentring and comfort | not worn; preview not captured |
+
+This boot check does not upgrade the camera/control migration to worn or visual
+acceptance. Use the checklist in VR_ARCHITECTURE.md. Evidence: task output
+`device-camera-migration/OoTVR/lepton-steamlaunch.log` and the cross-port report.
