@@ -2,7 +2,7 @@
   "schema_version": 1,
   "milestone": "PR0",
   "status": "EXPERIMENTAL",
-  "publication_status": "prepared for public experimental source; no binary release published",
+  "publication_status": "public experimental source; no binary release",
   "audited_commit": "bfbec4bc8e4c3e290970c72ecbc29a179bf27b5d",
   "current_checkout_commit": "bfbec4bc8e4c3e290970c72ecbc29a179bf27b5d",
   "branch": "steam-frame",
@@ -38,5 +38,6 @@
   "audit_date": "2026-10-11",
   "audit_details": "docs/PR0_READINESS.md",
   "license_scope": "Retained component notices apply to their stated code; they do not grant redistribution rights to commercial ROMs, extracted media, saves or proprietary libraries.",
-  "distribution_blockers": []
+  "distribution_blockers": [],
+  "publication_date": "2026-10-11"
 }
