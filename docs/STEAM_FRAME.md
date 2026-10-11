@@ -7,7 +7,7 @@ Quest build stays as it was.
 
 The Frame variant adds persistent game storage, Frame controller bindings, laser navigation, a VR
 settings menu, and cinema options for cutscenes and pre-rendered rooms. The controls and setup steps
-below apply to the Frame build; dated device notes later in this guide record earlier test sessions.
+below apply to the Frame build. See the architecture notes for implementation details.
 
 ## What differs from the Quest build
 
@@ -34,71 +34,158 @@ and passes `-DSOH_STEAM_FRAME=ON` to CMake (a C/C++ define of the same name).
 | Mode changes | none | 0.25 s black, 0.35 s fade-in on every immersive / cinema / panel change |
 | Quit | n/a | SteamVR's menu ends the app: the activity is finished when the session goes EXITING |
 
-## Build on a Mac (Apple Silicon)
+## Build the APK
 
-The Gradle files pin NDK 26.0.10792818 and CMake 3.31.5, so those are what gets used. One-time:
+Build on an x86-64 Linux or macOS desktop, or on Windows through WSL2 with an x86-64 Ubuntu distribution. These
+steps use Bash for the host asset pack and Gradle wrapper. On Apple Silicon, install Rosetta because the pinned
+NDK 26 package uses x86-64 host tools. Steam Frame is ARM64 and is not a host for these Android build tools.
+Android's [NDK downloads](https://developer.android.com/ndk/downloads) list the available host packages.
 
-```bash
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17 ANDROID_HOME=$HOME/Library/Android/sdk
-sdkmanager --sdk_root=$ANDROID_HOME "ndk;26.0.10792818" "cmake;3.31.5" \
-    "platforms;android-31" "platforms;android-33" "build-tools;34.0.0"
+### Windows with WSL2
+
+Install [WSL 2 and Ubuntu](https://learn.microsoft.com/en-us/windows/wsl/install). From PowerShell run as
+Administrator, install Ubuntu with:
+
+```powershell
+wsl --install -d Ubuntu
 ```
 
-NDK 26's host tools are x86_64, so Rosetta must be installed.
+Restart Windows if prompted, open Ubuntu, and create its Linux user. Do the build in Ubuntu, with the checkout and
+Android SDK under Linux `~` (for example `~/src`), not under `/mnt/c`. Install the Linux JDK and tools inside Ubuntu;
+a Windows JDK or Android SDK is not used by the WSL build:
 
 ```bash
-cd Android && sh ./gradlew assembleFrame     # a clean build is a few minutes to ten; it downloads SDL2, opus, ...
-# -> Android/app/build/outputs/apk/frame/soh_frame_v9.2.3-android.14-frame.apk   (debug key)
+sudo apt update
+sudo apt install -y openjdk-17-jdk git curl unzip zip openssh-client
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export ANDROID_HOME="$HOME/Android/Sdk"
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+mkdir -p "$ANDROID_HOME/cmdline-tools/latest" /tmp/android-cmdline-tools
+curl -fL -o /tmp/commandlinetools-linux.zip \
+  https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip
+unzip -q /tmp/commandlinetools-linux.zip -d /tmp/android-cmdline-tools
+mv /tmp/android-cmdline-tools/cmdline-tools/* "$ANDROID_HOME/cmdline-tools/latest/"
 ```
 
-`sh ./gradlew` because the wrapper is not executable in git. Needs about 10 GB of disk (`Android/app/.cxx`
-is 7 GB of it).
+The Linux command-line tools archive and `sdkmanager` are documented on Google's [Android Studio downloads](https://developer.android.com/studio)
+and [`sdkmanager` pages](https://developer.android.com/tools/sdkmanager). Keep this Ubuntu terminal open so the
+environment variables remain set.
 
-Things a clean checkout trips over, none of them Frame-specific:
-
-- `SkipPullMasterSword.cpp` called `Camera_RequestMode`, which this tree does not have. Fixed in this branch
-  (it is `Camera_ChangeMode` here); no APK could be built without it.
-- The manifest asks for `@mipmap/ic_launcher`, but the icon PNGs are not in git (`*.png` is ignored) and
-  there is no other mipmap resource. The Frame build type carries its own adaptive icon in `src/frame/res`.
-  A clean `assembleDebug` / `assembleRelease` still stops in resource linking for that reason.
-- **`soh.o2r` has to be put in the APK by hand.** It holds the port's own assets (fonts, shaders, the custom
-  textures), needs no ROM, and is generated on a host by the `GenerateSohOtr` target (a host-built ZAPD does the
-  packing). The Quest releases bundle it from `Android/app/src/main/assets/soh.o2r`, which git ignores (`*.o2r`),
-  so it is not committed. To make it on a Mac:
-
-  ```bash
-  brew install ninja glew libzip nlohmann-json tinyxml2 opus opusfile sdl2_net sdl2   # whatever of these you lack
-  cmake -S . -B /tmp/soh-host -G Ninja -DBUILD_REMOTE_CONTROL=1
-  cmake --build /tmp/soh-host --target GenerateSohOtr
-  cp soh/soh.o2r Android/app/src/main/assets/soh.o2r      # (the target also copies it to the repo root); then assembleFrame
-  ```
-
-  Without it the game starts with no HUD assets.
-
-## Deploy
+Clone the public Frame branch into the Linux home directory:
 
 ```bash
-tools/steam_frame/deploy.sh --rom "/path/to/oot.z64" --register-title   # once
-tools/steam_frame/deploy.sh                                              # install + start over adb
+mkdir -p ~/src && cd ~/src
+git clone --recurse-submodules --branch steam-frame https://github.com/astromaddie/oot-vr.git
+cd oot-vr
 ```
 
-`FRAME_HOST` (default `steamos@192.168.1.31`) and `FRAME_ADB_HOST` override the targets. adb needs
-**Lepton Development** running (start it from the Frame's Steam library; its adbd is on `<frame>:5555`). It
-deletes its apps when it exits, so to play use the persistent **OoTVR** title in the Steam library (a Lepton
-devkit title, `~/devkit-game/OoTVR/OoT-VR.apk`; every later `deploy.sh` refreshes that copy). A binary started
-over adb gets no controllers and no focus from SteamVR: use it for logs and launch the Steam title to play.
+Install JDK 17, Android SDK command-line tools, Git, CMake and Ninja. The native asset step also needs the host
+libraries listed in [BUILDING.md](BUILDING.md) for your operating system. For Debian/Ubuntu Linux and WSL2, install
+these tools and the native asset dependencies from the repository root using the [Linux build package list](BUILDING.md#linux):
 
-SteamVR runs one scene app at a time, and the headset is shared by several sessions. `deploy.sh` books the Frame
-through `~/.claude/skills/steam-frame-vr-port/scripts/frame-lock.sh` (session name `FRAME_LOCK_SESSION`, default
-`code-fe`) before it installs, launches, registers a title or writes `vr-diag.ini`, stops with the holder's status if
-the Frame is booked, and checks for a running Steam title or recent `[openxr]` journal lines before launching.
-`--release` gives the booking back. Read-only steps (`--logcat`/`--pull-dumps` on an existing run, `--ssh-log`) need no
-booking. adb goes to Lepton Development over Wi-Fi: `FRAME_ADB_HOST` defaults to `192.168.1.31:5555`.
+```bash
+sudo apt install -y openjdk-17-jdk git curl unzip zip build-essential $(cat linux-build-deps/apt.txt)
+```
 
-The ROM goes into `~/Documents/OoTVR` (any file name; the game finds it by content, like on the Quest). On the
-first start it builds `oot.o2r` from it, which takes a minute or two with only loading dots in the headset. Settings
-(`shipofharkinian.json`), saves (`Save/`), `mods/`, `vr-diag.ini` and the game log (`logs/`) land in the same folder.
-`deploy.sh --help` lists the rest.
+On macOS, install JDK 17 and the native asset-pack tools and libraries with Homebrew:
+
+```bash
+brew install openjdk@17 cmake ninja glew libzip nlohmann-json tinyxml2 opus opusfile sdl2_net sdl2
+```
+
+Leave about 10 GB free for a full Android build (`Android/app/.cxx` uses most of it).
+
+For Linux/macOS only, set these variables to the JDK 17 and Android SDK locations for that host (skip this block if
+you followed the Windows/WSL setup above):
+
+```bash
+export JAVA_HOME="/path/to/jdk-17"
+export ANDROID_HOME="/path/to/android-sdk"
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+```
+
+Accept the Android SDK licenses, then install the pinned packages:
+
+```bash
+sdkmanager --sdk_root="$ANDROID_HOME" --licenses
+sdkmanager --sdk_root="$ANDROID_HOME" \
+  "platform-tools" "platforms;android-31" "platforms;android-33" \
+  "build-tools;34.0.0" "ndk;26.0.10792818" "cmake;3.31.5"
+export PATH="$ANDROID_HOME/cmake/3.31.5/bin:$PATH"
+```
+
+For Linux and macOS, install the command-line tools for that host from Google's [Android Studio downloads](https://developer.android.com/studio)
+page and put their `cmdline-tools` contents under `<android-sdk>/cmdline-tools/latest` before running the setup above.
+
+On Windows through WSL2, clone from Ubuntu into `~/src` and run the Linux dependency and SDK commands in that same
+Ubuntu environment. A Windows file such as `C:\Users\WindowsUser\Documents\oot.z64` appears there as
+`/mnt/c/Users/WindowsUser/Documents/oot.z64`; replace `WindowsUser` with the Windows account name. The Frame game
+still reads its ROM from `~/Documents/OoTVR` on the headset.
+
+Build the source asset pack before the APK. `soh.o2r` contains the port's fonts, shaders and textures; it is built
+from this repository and does not need a ROM. Gradle does not generate it for you.
+
+```bash
+cmake -S . -B /tmp/soh-host -G Ninja -DBUILD_REMOTE_CONTROL=1
+cmake --build /tmp/soh-host --target GenerateSohOtr
+cp soh/soh.o2r Android/app/src/main/assets/soh.o2r
+
+cd Android
+sh ./gradlew assembleFrame
+```
+
+With the default `GIT_TAG` unset, the APK is `Android/app/build/outputs/apk/frame/soh_frame_v9.2.3-android.14-frame.apk` and uses the debug key. Set `GIT_TAG` only if you want to change the APK filename.
+The game needs a separate compatible Ocarina of Time ROM on the Frame; it is not included in the APK or repository.
+
+## Install and run
+
+If Steam's Devkit Client is running on Windows, copy the built APK from WSL to a Windows folder so the client can
+browse it. From the repository root in Ubuntu:
+
+```bash
+windows_user="$(cmd.exe /C echo %USERNAME% | tr -d '\r')"
+mkdir -p "/mnt/c/Users/$windows_user/Downloads/OoTVR"
+cp Android/app/build/outputs/apk/frame/soh_frame_v9.2.3-android.14-frame.apk \
+  "/mnt/c/Users/$windows_user/Downloads/OoTVR/"
+```
+
+Use Valve's [SteamOS Devkit Client](https://partner.steamgames.com/doc/steamhardware/steamframe/loadgames) from Steam
+on your desktop. Pair it once with the Frame: enable Developer Mode, choose **Settings > Developer > Pair new host**,
+then register the Frame in the client's **Devkits** tab and confirm pairing on the headset.
+
+For a first install, open **Devkits > Connect to devkit by IP**, choose **Title Upload**, and set:
+
+- **Name:** `OoTVR`
+- **Local Folder:** The folder containing the APK: the Windows Downloads folder copied above on WSL, or
+  `Android/app/build/outputs/apk/frame` on Linux/macOS.
+- **Start Command:** `soh_frame_v9.2.3-android.14-frame.apk`
+- **Runtime:** `Android`
+
+Upload and start the title. It then appears in the Frame's Steam library under **Library > Non-Steam > Devkit Game**.
+For later builds, upload again with the same title name to update that library entry. Steam launches provide the
+Frame controller input.
+
+Put your own compatible Ocarina of Time ROM in `~/Documents/OoTVR` on the Frame. On first launch, the game creates
+`oot.o2r` from that ROM in the same folder; saves, settings and mods are stored there too. This generated `oot.o2r`
+is different from `soh.o2r`, the source asset pack required during the APK build.
+
+To copy a ROM from your build computer, enable Developer Mode and set the SteamOS password using Valve's
+[Steam Frame setup guide](https://partner.steamgames.com/doc/steamhardware/steamframe/setup). Valve's
+[debugging guide](https://partner.steamgames.com/doc/steamhardware/steamframe/debugging) documents SSH as
+`steamos@frame`. Set `FRAME_HOST` to `frame` or the Frame's IP address; enter the password you set when SSH asks.
+These commands use the host's OpenSSH `ssh` and `scp` clients; install `openssh-client` on Ubuntu (included in the
+WSL setup above).
+From WSL, a ROM saved in Windows Documents is at `/mnt/c/Users/WindowsUser/Documents/oot.z64`; replace
+`WindowsUser` with your Windows account name. From the build computer, run:
+
+```bash
+export FRAME_HOST=frame  # replace with the Frame's IP if its hostname does not resolve
+ROM="/mnt/c/Users/WindowsUser/Documents/oot.z64"  # use the local file path on Linux/macOS
+ssh "steamos@$FRAME_HOST" 'mkdir -p /home/steamos/Documents/OoTVR'
+scp "$ROM" "steamos@$FRAME_HOST:/home/steamos/Documents/OoTVR/"
+```
+
+The ROM may have any filename; the game identifies a compatible image by its contents.
 
 ## Controls
 
@@ -156,133 +243,12 @@ VR Settings > Display & Performance (standard section 9):
 | Setting | CVar | Default | What |
 | --- | --- | --- | --- |
 | Refresh Rate | `gVrRefreshRate` | 120 Hz | the highest offered rate at or below it is requested (next start) |
-| Advise When Too Slow | `gVrRefreshAutoFallback` | on | the app cannot change the Frame's rate (SteamVR offers only the title's per-app rate). Two 10 s windows below 90% while worn log once which per-app rate to set |
+| Advise When Too Slow | `gVrRefreshAutoFallback` | on | logs a suggested SteamVR per-app rate after two 10-second windows below 90% of the target |
 | Resolution Scale | `gVrResolutionScale` | 1.0 | a multiplier on the 2160x2160 target (which is the runtime's recommendation when that is larger), 0.75-1.5, next start |
 
-## Unattended testing (nothing worn)
+## Performance
 
-A headset on a desk reports `shouldRender=false`. By default the Frame build ends that frame empty at once.
-Frame-only switches live in `~/Documents/OoTVR/vr-diag.ini` (`deploy.sh --diag KEY=VAL`; the architecture doc lists
-them with their effects): `force_render`, `diag_yaw`, `diag_roll`, `dump_frame`, `dump_at`, `dump_when`, `dump_count`,
-`dump_every`, `diag_menu_open`, `refresh_rate`, `resolution_scale`, `timing`, `autostart`, `autostart_entrance`, `autostart_slot`, `autostart_new_game`, `diag_pause_at`,
-`stereo_divisor` (1 to 4, overrides `gVrStereoDivisor` for the run, to measure 1 against 2).
-With `force_render` the game draws and submits from a synthetic head at 1.6 m (eyes +-32 mm) with the hands parked,
-and keeps being stepped. `autostart` skips the title and file select through the game's debug-save path (no save
-file is touched) and lands in Kokiri Forest. The dumps are `vr-dumps/vr-eye0.bmp`, `vr-eye1.bmp` and `vr-state.txt`.
-Remove the file (`--diag-reset`) before playing.
-
-```bash
-tools/steam_frame/deploy.sh --clear-dumps --diag force_render=1 --diag autostart=1 --diag dump_frame=600 \
-    --diag diag_yaw=0 --logcat 90 --pull-dumps scratchpad/dumps/yaw0
-tools/steam_frame/tests/run_tests.sh      # host tests: bindings, system layer, diag parser, [vr-perf] format
-```
-
-First-wear checks (each its own run; `--clear-dumps` first; seconds count from the first gameplay tick):
-
-```bash
-# 1. Link's house the original way (flat cinema): vr-eye0/1 show the same 4:3 backdrop band, vr-state.txt
-#    presentation=flat cinema, layers=cinema-projection; log "[vr] scene 0x34: room files from the game"
-tools/steam_frame/deploy.sh --diag force_render=1 --diag autostart=1 --diag autostart_entrance=0x00BB \
-    --diag dump_at=15 --diag dump_when=flat_cinema --logcat 60 --pull-dumps scratchpad/dumps/house
-# 2+3. The new-game intro in 3D cinema (Deku Tree and Navi): a series of six dumps 2 s apart; each eye shows the
-#    16:9 band with the sky; the two eyes differ by a small horizontal shift; "[vr] cinema on: 3D cinema (cutscene)"
-#    and "[vr-sky]" lines in the log
-tools/steam_frame/deploy.sh --diag force_render=1 --diag autostart_new_game=1 --diag dump_at=8 \
-    --diag dump_when=cinema3d --diag dump_count=6 --diag dump_every=180 --logcat 120 --pull-dumps scratchpad/dumps/intro
-#    the same with VR Settings > Cutscenes = Immersive (shipofharkinian.json "gVrCutsceneMode": 1) and dump_when=immersive
-# 4. Pause from the user's save: vr-panel.bmp shows the pause screen over the frozen world; vr-state.txt has no
-#    "projection" in layers=, only panel
-tools/steam_frame/deploy.sh --diag force_render=1 --diag autostart_slot=1 --diag diag_pause_at=12 \
-    --diag dump_at=16 --diag dump_when=panel --logcat 60 --pull-dumps scratchpad/dumps/pause
-# 5. HUD with a rolled head: head_quat in vr-state.txt shows the 30 degree roll (0,0,0.259,0.966), the "hud" line
-#    says space=local and quat=0,0,0,1 (level), and vr-hud.bmp is upright
-tools/steam_frame/deploy.sh --diag force_render=1 --diag autostart_slot=1 --diag diag_roll=30 \
-    --diag dump_at=12 --diag dump_when=immersive --logcat 60 --pull-dumps scratchpad/dumps/roll
-# 6. The laser pointer on top: vr-menu.bmp shows the menu with the cursor, vr-state.txt ends layers= with
-#    "pointer-beam pointer-dot" and a "pointer hand=1 hit=1" line
-tools/steam_frame/deploy.sh --diag force_render=1 --diag autostart_slot=1 --diag diag_menu_open=1 \
-    --diag dump_at=5 --logcat 60 --pull-dumps scratchpad/dumps/pointer
-# 7. Round 2, 2D in front in the 3D cinema: the intro run of 2+3; "[vr] cinema convergence N (nearest visible N" lines;
-#    in vr-eye0/1 the dialogue box and text are at the same place in both eyes while every scene feature is shifted
-#    right in vr-eye1 relative to vr-eye0 (uncrossed: behind the screen plane), never left
-# 8. Round 2, pause over the world: run 4; vr-state.txt "layers=projection panel(over-world)", vr-eye0/1 show the room
-#    (Link's house: the flat-cinema band) and vr-panel.bmp the pages on black (black = transparent there). For the 3D
-#    world under the pages: --diag autostart=1 --diag diag_pause_at=12 --diag dump_at=16 --diag dump_when=panel
-#    (Kokiri Forest; vr-eye0/1 show the village from the synthetic head, not a captured picture)
-# 9. 120 Hz / 2160²: the log has "[vr] display: requesting 120 Hz", "[vr] eye size: recommended ..., runtime maximum ..., -> 2160x2160", and
-#    [vr-perf] period=8.3ms; vr-state.txt eye=2160x2160. With --diag refresh_rate=90 --diag resolution_scale=0.8 about
-#    90 Hz / 1728² for comparison. The rate advice never fires with force_render (it counts worn time only)
-```
-
-`--logcat 90` captures the run to `scratchpad/frame-logcat.txt` (git-ignored). Evidence lines to look for:
-`[vr] OpenXR runtime:`, `[vr] Session state`, `Stereo (multiview) swapchain: ... arraySize=2 multiview=1`,
-`[vr] ... framebuffers COMPLETE`, `[vr] Display period`, `[VR_CTRL] xrSuggestInteractionProfileBindings ... ok`,
-`[VR_CTRL] interaction profile`, `[vr-diag]`, `[vr-perf]`, `[vr-dump]`, `[vr-sys]`, `setupFiles`, `[Setup]`.
-Use `deploy.sh --ssh-log 80` to read the same lines from the game's own log file without adb.
-
-## Verified, and at which level
-
-"Host" means the Mac. "Unattended device" means the Frame on a desk (Wi-Fi adb, `force_render`), run on 2026-10-04. Nothing has been worn yet.
-
-| Claim | Level |
-| --- | --- |
-| `assembleFrame` builds from a clean checkout plus the fixes in this branch (NDK 26.0.10792818, CMake 3.31.5), APK about 66 MB with soh.o2r | host build |
-| The APK's merged manifest has no headtracking feature, no Quest metadata, minSdk 24; the Khronos loader is in it; the Frame strings are in `libsoh.so` | host (inspection of the build output) |
-| The Frame-only C/C++ compiles with `-Wall -Wextra` with no warning in the new code, and the files that are shared with the Quest compile without `SOH_STEAM_FRAME` too | host (syntax-only runs with the build's own flags) |
-| The Quest debug build still configures and compiles natively (`externalNativeBuildDebug`) | host build (see the note below on what `assembleDebug` does) |
-| Binding table: real component paths per profile, Frame layout, unique action and localized names, Frame profile first | host test (`check_bindings.py`, source text only) |
-| System layer: View short / 1 s / 3 s, chord, R Menu held back, focus loss | host test (production file, fake clock) |
-| `vr-diag.ini` parser, synthetic head, BMP writer, `[vr-perf]` line format | host test |
-| `deploy.sh` control flow, including the booking refusing when someone else holds the Frame | host, with stand-ins for ssh, scp, adb and a temporary lock directory |
-| Installs in Lepton over Wi-Fi adb; SDL activity starts; data root `/storage/emulated/0/Documents/OoTVR` with no permission prompt; the USA 1.0 ROM is found there and `oot.o2r` is built from it in about 60 s on the first start | unattended device |
-| OpenXR through the Khronos loader and `/vendor/etc/openxr/1/active_runtime.json`; session reaches SYNCHRONIZED; 1728x1728 `GL_SRGB8_ALPHA8` swapchain, multiview on (`vr-state.txt`) | unattended device |
-| `force_render` steps the game with the headset off; `autostart` warps into Kokiri Forest (scene 0x55, entrance 0xEE) with no controller; dumps at yaw 0 and 90 show a world-locked stereo view with the expected disparity (near hands shift more than the village) | unattended device (`scratchpad/dumps/`, not committed) |
-| Kokiri Forest, divisor 2 (default): 72.0 fps, 0 missed per 10 s, CPU 10.8-11.3 ms, GPU 3.6-4.1 ms | unattended device (`[vr-perf]`) |
-| Kokiri Forest, divisor 1 (both eyes every frame): 72.0 fps, 0-1 missed per 10 s, CPU 12.8 ms of the 13.9 ms period, GPU 2.5 ms. CPU-bound with about 1 ms to spare; heavier scenes are untested | unattended device (`[vr-perf]`) |
-| Kokiri Forest at **90 Hz**, divisor 1: 90.0 fps, 0 missed per 10 s, with or without `[vr-wait]`. `[vr-wait]` shows ~2.9 ms of game-thread CPU a frame; ~6 ms of the "eyes" stage is `xrAcquireSwapchainImage` blocking for a free image (pacing, not work). The earlier "CPU-bound at 72 Hz" reading was that wait | unattended device (`[vr-perf]`, `[vr-wait]`, 2026-10-04) |
-| The persistent `OoTVR` devkit title is registered and holds the APK | unattended device (registered, **not launched from Steam yet**) |
-| Frame controller profile accepted by SteamVR; button layout as bound here | **not run** (needs a Steam launch); the paths are the ones GoldenEye, Halo and F-Zero bind, which have been worn |
-| System layer, recentre, VR settings chord, in-headset menu pad input, Quit from SteamVR | **not run** |
-| Anything about what the eyes see, comfort, performance, audio | **not verified (nothing worn)** |
-
-`assembleDebug` is not the check for the Quest build: it fails in resource linking on a clean checkout for the
-missing launcher icon, with or without these changes (see above). The native part is what the changes touch.
-
-## Open problems / next
-
-- First wear (phase 3): launch **OoTVR** from the Steam library and run the checklist in VR_ARCHITECTURE.md section 9.
-- The Frame build now defaults to stereo divisor 1 (both eyes every frame). Measure Hyrule Field and Kakariko at 90 Hz with `--diag timing=3` and check `[vr-wait]` before trusting it everywhere.
-- The OpenXR init lines (runtime name, profile suggestions, swapchain) do not reach the log file; only the session-state lines do. Log them after the logger is up.
-- `soh.o2r` has to be generated and dropped in before `assembleFrame` (see Build); it is not wired into Gradle.
-- The world is redrawn every second XR frame by default (`gVrStereoDivisor` = 2), so 36 Hz of new eye images at 72 Hz,
-  reprojected in between. Valve's floor is 72 fps at 1728x1728; whether this counts is a question for a wear session.
-- Focus loss does not pause the game or audio yet (standard section 0); input just goes inactive.
-- Depth submission, foveation, the Frame render models: not done.
-- Frame fresh defaults now use snap 30 degrees; existing explicit turn choices remain preserved (camera migration below).
-- The VR Inputs editor and the settings text still use Touch button names.
-- `autostart` lands in Kokiri Forest with the debug save and child Link; other scenes need `autostart_entrance`.
-
-## Camera migration delivery (2026-10-07)
-
-The migration source is committed as `45ae9961201c9887e669db549988bb1b136ad983`
-with libultraship `17b04722db1c237bf16e516a96e0a4d3f946b743`. The successful
-Frame APK records the earlier dirty `aba1899` build state; its compiled changes
-were subsequently committed unchanged, with only the submodule repository URL
-altered later. ARM64 libraries, dependencies, packaged soh.o2r and Android v2
-signature were verified locally.
-
-Installed `~/devkit-game/OoTVR/OoT-VR.apk` SHA-256:
-`9f86ad21122934842968d8c63ce87ca5ed9e13f1fa105e44dead176930019b51`.
-The booked, idle Steam-title launch (raw app ID 2485753461) reached OpenXR
-IDLE -> READY -> SYNCHRONIZED at 120 Hz. Only the task's Lepton process was
-stopped. The startup-written settings file was restored; its hash and both
-Save/*.sav hashes match the pre-run manifest.
-
-| Current increment | Evidence level |
-| --- | --- |
-| ARM64 package and existing Steam-title boot | verified unattended |
-| New paused-camera preview, physical remaps/modifier, tracked recentring and comfort | not worn; preview not captured |
-
-This boot check does not upgrade the camera/control migration to worn or visual
-acceptance. Use the checklist in VR_ARCHITECTURE.md. Evidence: task output
-`device-camera-migration/OoTVR/lepton-steamlaunch.log` and the cross-port report.
+In Kokiri Forest, the default divisor of 2 recorded 72 fps with no missed frames per 10 seconds, 10.8–11.3 ms of
+CPU time and 3.6–4.1 ms of GPU time. At 72 Hz with divisor 1, it recorded 72 fps with zero to one missed frames
+per 10 seconds, 12.8 ms of CPU time and 2.5 ms of GPU time. At 90 Hz with divisor 1, it recorded 90 fps with no
+missed frames per 10 seconds and about 2.9 ms of game-thread CPU time per frame.

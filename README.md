@@ -19,11 +19,29 @@ In third-person play, left trigger targets and the right bumper raises the shiel
 
 The game runs at its native logic rate while the headset presents interpolated frames. Busy scenes can show motion between the game's updates, and the Frame build exposes a stereo render divisor and display settings for tuning.
 
-The [Steam Frame guide](docs/STEAM_FRAME.md) covers building, installation, controls and settings. The [architecture notes](docs/VR_ARCHITECTURE.md) explain how the port works. The Quest README remains available in [README_QUEST.md](README_QUEST.md).
+The [Steam Frame guide](docs/STEAM_FRAME.md) has the build prerequisites, APK install steps, controls and settings. The [architecture notes](docs/VR_ARCHITECTURE.md) explain how the port works. The Quest README remains available in [README_QUEST.md](README_QUEST.md).
 
 ## Build and install
 
-The Frame APK is built from the `frame` Gradle variant. Start with the prerequisites and commands in the [Steam Frame guide](docs/STEAM_FRAME.md); its build produces the APK, and its deploy script installs the title and copies your own game data to the headset.
+Build on a desktop running x86_64 Linux, macOS, or Windows through WSL2. On Apple Silicon, install Rosetta for the pinned NDK's x86_64 host tools. The Frame itself runs ARM64 SteamOS, so it cannot run this project's pinned Android NDK build tools. [Android's NDK downloads](https://developer.android.com/ndk/downloads) list the supported desktop hosts.
+
+The public source branch is `steam-frame`:
+
+```sh
+mkdir -p ~/src
+cd ~/src
+git clone --recurse-submodules --branch steam-frame https://github.com/astromaddie/oot-vr.git
+cd oot-vr
+```
+
+Install JDK 17 and the Android SDK packages listed in the [Steam Frame guide](docs/STEAM_FRAME.md). Generate the source asset pack as described there, then build the `frame` variant:
+
+```sh
+cd Android
+sh ./gradlew assembleFrame
+```
+
+The APK is `Android/app/build/outputs/apk/frame/soh_frame_v9.2.3-android.14-frame.apk`. Building does not install or launch it. The guide covers uploading it with Valve's [SteamOS Devkit Client](https://partner.steamgames.com/doc/steamhardware/steamframe/loadgames) and providing your own game data.
 
 ## Credits and licenses
 
