@@ -1,1 +1,2 @@
 * text=auto eol=lf
+patches/libultraship-steam-frame.patch -text -eol whitespace=-blank-at-eol

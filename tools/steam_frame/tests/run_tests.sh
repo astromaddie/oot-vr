@@ -6,6 +6,7 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../../.." && pwd)"
 lus="$root/libultraship"
+"$root/tools/steam_frame/prepare_libultraship.sh"
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
 

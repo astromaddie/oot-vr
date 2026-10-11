@@ -1,7 +1,6 @@
 [submodule "libultraship"]
 	path = libultraship
-	url = https://github.com/astromaddie/libultraship-vr.git
-	branch = steam-frame
+	url = https://github.com/ChocoTorp/libultraship-vr.git
 [submodule "ZAPDTR"]
 	path = ZAPDTR
 	url = https://github.com/ChocoTorp/ZAPDTR

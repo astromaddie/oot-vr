@@ -146,6 +146,10 @@ task wrapper(type: Wrapper) {
 tasks.register("applyLibultrashipAndroidPatch") {
     doLast {
         def libultrashipDir = file("${rootProject.projectDir}/../libultraship")
+        exec {
+            workingDir rootProject.projectDir.parentFile
+            commandLine "bash", "tools/steam_frame/prepare_libultraship.sh"
+        }
         def contextFile = file("${libultrashipDir}/src/ship/Context.cpp")
         if (!contextFile.text.contains("sAndroidDataRootPath")) {
             exec {
