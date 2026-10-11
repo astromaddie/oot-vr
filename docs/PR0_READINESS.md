@@ -2,6 +2,8 @@
 
 Visibility remains private. No release package or publication is authorized by this readiness record.
 
+The immutable PR0 test commit, supported targets and final host-check results are in [PR0_METADATA.json](PR0_METADATA.json). Full application builds and focused wearer acceptance remain pending.
+
 ## Source and test identity
 
 - Root source revision: c3cb0b61d9f5718f67f886267e55571b700dee14.
