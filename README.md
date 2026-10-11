@@ -4,6 +4,8 @@ This is my Steam Frame fork of [Ship of Harkinian VR](https://github.com/ChocoTo
 
 **EXPERIMENTAL.** This is a personal-use port and remains a work in progress. It targets the Valve Steam Frame. You need your own compatible Ocarina of Time game data; it is not included. The separate Frame build is assembled from public source and this fork's tracked changes.
 
+**Want to play on Steam Frame?** Download the prebuilt standalone APK from the [v0.1.0 prerelease](https://github.com/astromaddie/oot-vr/releases/tag/v0.1.0); no compiler is needed. Bring a compatible Ocarina of Time ROM that you own; the ROM and generated game data are not included.
+
 The original Ship of Harkinian VR port supplies the core VR game and interactions. This fork adds the Frame build, controller support, persistent storage, camera controls and presentation changes.
 
 ## VR features and Frame changes
