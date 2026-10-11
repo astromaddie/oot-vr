@@ -1,47 +1,30 @@
-# Ocarina of Time VR for Steam Frame — experimental technical preview
+# Ocarina of Time VR for Steam Frame
 
-This private Ship of Harkinian VR fork adds a native Steam Frame target through Lepton (Android 11/API 30), arm64-v8a, OpenGL ES 3.2, and SteamVR OpenXR. The Frame build is a separate Gradle variant. This is an experimental port preview; it does not claim complete-gameplay acceptance.
+This is my Steam Frame fork of [Ship of Harkinian VR](https://github.com/ChocoTorp/Shipwright-VR). It runs on the headset through Lepton, Android, SteamVR OpenXR and GLES; no gaming PC is needed.
 
-The project is based on [Ship of Harkinian VR](https://github.com/ChocoTorp/Shipwright-VR). General engine changes should be proposed upstream; Frame-specific changes belong in this fork and need owner access. The Quest installation README is preserved in [README_QUEST.md](README_QUEST.md). This repository remains private.
+**EXPERIMENTAL.** This is a personal-use port and remains a work in progress. It targets the Valve Steam Frame. You need your own compatible Ocarina of Time game data; it is not included. The separate Frame build is assembled from public source and this fork's tracked changes.
 
-## Capability evidence
+The original Ship of Harkinian VR port supplies the core VR game and interactions. This fork adds the Frame build, controller support, persistent storage, camera controls and presentation changes.
 
-| Capability | Host | Frame on desk | Worn |
-|---|---|---|---|
-| Build and XR startup | Focused host suite passed with public libultraship base plus exact tracked patch; no current Frame APK was built. | Earlier worktree reached OpenXR readiness; its installed APK came from an earlier dirty state. | Current source and camera migration have no focused wear check. |
-| Stereo scenes | Host projection, camera and presentation tests passed. | Historical synthetic-head captures checked Kokiri Forest, Link's house/cinema paths, and pause presentation; selected Kokiri runs measured 72/90 Hz. | Older wear sessions covered selected scenes only; no claim covers this source revision. |
-| Controllers and menus | Binding/system and gamepad host checks passed. | The Frame interaction profile and real controller path were not exercised in the unattended runs. | Current controller input, manual menu navigation, settings readability and comfort remain open. |
-| Saves and gameplay | Save-path logic was not a complete gameplay test. | A prior user save and selected pause/resume flow were exercised. | Current install, play, pause, save/reload, and exit need a focused session. |
-| Performance | Host tests are not device timing. | Older Kokiri Forest runs reached 72 and 90 Hz; heavier scenes and this source revision are unmeasured. | Current-source sustained performance is unmeasured. |
+## VR features and Frame changes
 
-See [docs/VR_ARCHITECTURE.md](docs/VR_ARCHITECTURE.md) and [docs/PR0_READINESS.md](docs/PR0_READINESS.md) for source identities and exact evidence levels.
+- Head-tracked stereoscopic play, with snap or smooth turning and seated recentering.
+- Frame controller bindings: the right controller's physical Menu button pauses the game, and left View recentres. The SteamVR system/dashboard button is not bound.
+- A laser pointer for menus, plus an in-headset VR settings menu.
+- A 3D cinema option for cutscenes and pre-rendered rooms, with immersive presentation available in settings.
+- A pause view that can show the frozen game world behind the menu, and a head-level HUD. The paused VR settings menu previews camera changes live; in third-person play, hold left grip and move the right stick to adjust world size, camera distance and height.
+- Persistent game files, saves and settings in `~/Documents/OoTVR`.
 
-## Reconstruct the Frame build
+In third-person play, left trigger targets and the right bumper raises the shield. The third-person camera also supports right-stick turning and C-up/down.
 
-On Apple Silicon macOS, install JDK 17, Android SDK, NDK 26.0.10792818, CMake 3.31.5, Android platforms 31 and 33, build-tools 34.0.0, and Rosetta. The build requires about 10 GB of disk.
+The game runs at its native logic rate while the headset presents interpolated frames. Busy scenes can show motion between the game's updates, and the Frame build exposes a stereo render divisor and display settings for tuning.
 
-~~~sh
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17
-export ANDROID_HOME=$HOME/Library/Android/sdk
-sdkmanager --sdk_root=$ANDROID_HOME "ndk;26.0.10792818" "cmake;3.31.5" "platforms;android-31" "platforms;android-33" "build-tools;34.0.0"
-git submodule update --init --recursive
-tools/steam_frame/tests/run_tests.sh
-brew install ninja glew libzip nlohmann-json tinyxml2 opus opusfile sdl2_net sdl2
-cmake -S . -B /tmp/soh-host -G Ninja -DBUILD_REMOTE_CONTROL=1
-cmake --build /tmp/soh-host --target GenerateSohOtr
-cp soh/soh.o2r Android/app/src/main/assets/soh.o2r
-cd Android
-sh ./gradlew assembleFrame
-~~~
+The [Steam Frame guide](docs/STEAM_FRAME.md) covers building, installation, controls and settings. The [architecture notes](docs/VR_ARCHITECTURE.md) explain how the port works. The Quest README remains available in [README_QUEST.md](README_QUEST.md).
 
-The submodule URL is public libultraship at a pinned base. The tracked Frame patch and tools/steam_frame/prepare_libultraship.sh reconstruct the exact required tree before Gradle or host tests. The Frame variant needs the generated port asset soh.o2r; the source does not include it. PR0 did not run the full Android build because of disk cost. No ROM is needed to generate soh.o2r, but playing requires the user's own legally obtained compatible game data. No ROM, extracted game data, or saves are included.
+## Build and install
 
-## Known limits and rights
+The Frame APK is built from the `frame` Gradle variant. Start with the prerequisites and commands in the [Steam Frame guide](docs/STEAM_FRAME.md); its build produces the APK, and its deploy script installs the title and copies your own game data to the headset.
 
-The root repository has no license file. Do not infer source, decompilation, or media rights from its upstream relationship. Source/media review remains open, and there is no public release or visibility change. The clean Frame build requires a separately generated, ignored soh.o2r asset. A current-source Frame package and worn test have not been produced.
+## Credits and licenses
 
-## PR0 changelog
-
-- Preserved the Quest README and rewrote the root page as a private Steam Frame preview.
-- Replaced the private libultraship submodule source with a public pinned base plus an exact, SHA-256-checked tracked patch.
-- Added readiness evidence and the pending wearer checklist in docs/PR0_READINESS.md.
+This fork is based on [Ship of Harkinian VR](https://github.com/ChocoTorp/Shipwright-VR) and its upstream engine. This repository has no root license; check the upstream project and component notices before reusing code. The Quest README is preserved for the original port's setup and gameplay details. Game data, extracted assets and saves come from your own copy.

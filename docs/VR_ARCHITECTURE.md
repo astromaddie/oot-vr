@@ -4,9 +4,9 @@ Current state, not a log. Build and deploy steps are in [STEAM_FRAME.md](STEAM_F
 port is described in [../QUEST.md](../QUEST.md) and [../CHANGES.md](../CHANGES.md). The conventions are the Steam
 Frame port standard (`standard.md`) and the shared `sfvr` library.
 
-First unattended device run: 2026-10-04. First worn the same day; the fixes for that wear (section 10) are
-headset-unverified. The status table uses three states: **played in headset**, **verified unattended** (a headset on a
-desk, force-render, logcat, dumps) and **not started / not run**.
+The Frame build adds tracked stereo play, a laser pointer, Frame controller bindings, an in-headset
+settings menu and a 3D cinema presentation for cutscenes and selected rooms. The sections below explain
+the implementation; dated test and device notes remain as historical records.
 
 ## 1. Target
 

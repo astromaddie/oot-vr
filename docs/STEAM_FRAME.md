@@ -5,9 +5,9 @@ OpenGL ES 3.2 (Mesa Zink on Turnip, Adreno 750) and SteamVR's OpenXR runtime. Th
 same Android/OpenXR/multiview build as the Quest one, from a separate Gradle build type, so the
 Quest build stays as it was.
 
-Status (2026-10-04): **it builds and the host tests pass. It has not been run on a Frame, not even
-unworn.** Everything about how it behaves on the headset is a prediction until someone installs it.
-The last section says exactly what is checked and at which level.
+The Frame variant adds persistent game storage, Frame controller bindings, laser navigation, a VR
+settings menu, and cinema options for cutscenes and pre-rendered rooms. The controls and setup steps
+below apply to the Frame build; dated device notes later in this guide record earlier test sessions.
 
 ## What differs from the Quest build
 
@@ -24,7 +24,7 @@ and passes `-DSOH_STEAM_FRAME=ON` to CMake (a C/C++ define of the same name).
 | Storage permission | all-files access via a settings screen | not asked for: Lepton 2.8.14 maps `/sdcard/Documents` to the host folder and needs none. The Frame build checks the folder is writable instead, and falls back to the app's own files dir (with a log line) if it is not |
 | SDL clipboard | needs the clipboard service | null-safe for everyone (Lepton has no clipboard service) |
 | Controllers | Touch (plus Index, simple) | `valve/frame_controller_valve` first when `XR_VALVE_frame_controller_interaction` is advertised, then Index, Touch, simple |
-| System buttons | left menu button opens the VR settings | R Menu = Start, L View = back / recentre, Menu + View = VR settings. See the table below |
+| Physical Menu and system buttons | left menu button opens the VR settings | Right controller's physical Menu = Start, L View = back / recentre, Menu + View = VR settings; the SteamVR system/dashboard button is not bound. See the table below |
 | In-headset menu input | laser pointer | laser pointer plus the XR pad as the only gamepad writer for ImGui (see VR_ARCHITECTURE.md) |
 | Diagnostics | none | `vr-diag.ini`, `[vr-perf]`, eye dumps, logcat sink |
 | Cutscenes | the 6DoF world (immersive) | **3D cinema** by default: the game's own camera on a world-locked 3.6 m screen 3 m ahead, in stereo; VR Settings > HUD & Menus > Cutscenes = Immersive keeps the old way |
@@ -122,7 +122,7 @@ for the Quest's left X and Y, so motion combat, the item selector and the ocarin
 | R stick | Turn (snap 45 degrees by default, smooth in the settings). Click: the item selector (hold, flick, release) |
 | D-pad | In play: the N64 D-pad (D-pad equips, ocarina). In the 2D menus: steers the control stick |
 | L bumper / R bumper | L / R. In the 2D menus the left one is Z, so Z and R page the pause screen |
-| System button | never bound |
+| SteamVR system/dashboard button | never bound |
 
 The classic (non-selector) profile and the ocarina profile are the Quest ones, except that R Menu is Start in all
 three and the left stick click no longer carries Start in the classic one. Everything is still rebindable in
