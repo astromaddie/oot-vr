@@ -132,6 +132,19 @@ android {
     }
 }
 
+// The OpenXR Android AAR also carries loaders for other Android ABIs. Steam
+// Frame packages are arm64-v8a only; keep the Quest and other build types
+// unchanged while omitting those unused loaders from the Frame APK.
+androidComponents {
+    onVariants(selector().withBuildType('frame')) { variant ->
+        variant.packaging.jniLibs.excludes.addAll([
+            'lib/armeabi-v7a/libopenxr_loader.so',
+            'lib/x86/libopenxr_loader.so',
+            'lib/x86_64/libopenxr_loader.so'
+        ])
+    }
+}
+
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation 'androidx.core:core:1.7.0' // Use the latest version
