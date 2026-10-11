@@ -3,6 +3,9 @@
   "milestone": "PR0",
   "status": "EXPERIMENTAL",
   "publication_status": "private preparation; no release published",
+  "audited_commit": "bfbec4bc8e4c3e290970c72ecbc29a179bf27b5d",
+  "current_checkout_commit": "bfbec4bc8e4c3e290970c72ecbc29a179bf27b5d",
+  "branch": "steam-frame",
   "tested_commit": "12d1c9e86c0ece88a5db164f5918e6bdc5f1b202",
   "supported_targets": [
     "Steam Frame Lepton / Android ARM64 / SteamVR OpenXR"
@@ -24,14 +27,17 @@
     "results": {
       "canonical_host_tests": "PASS; all host tests passed",
       "full_build": "NOT RUN"
-    }
+    },
+    "source_commit": "12d1c9e86c0ece88a5db164f5918e6bdc5f1b202",
+    "result": "Canonical host tests passed against libultraship public base c59bbc35edfb50670ce841f13008c475bb05041e plus the recorded patch (SHA-256 f7e92c135e23b0e8d6b90d8f10c06be440b3687568be01afc3960cd4078e959a). Full APK build was not run."
   },
-  "full_application_build": "not run for PR0",
-  "focused_headset_acceptance": "pending for a clean candidate; historical results are documented separately",
-  "sustained_worn_performance": "unmeasured on current candidate",
+  "full_application_build": "not run for current audited source",
   "distribution_blockers": [
-    "Root source license and reconstructed-source/media provenance unresolved"
+    "No root source license is present, and attribution for the custom textures is incomplete. The audit found no ROM payload. Resolve the source grant and custom-texture attribution before publication."
   ],
-  "license_scope": "Retained component notices apply to their stated code; they do not grant redistribution rights to commercial ROMs, extracted media, saves or proprietary libraries.",
-  "changelog": "README.md#pr0-changelog"
+  "data_boundary": "User-provided game data is required and is external to this source checkout.",
+  "changelog": "CHANGELOG.md",
+  "audit_date": "2026-10-11",
+  "audit_details": "docs/PR0_READINESS.md",
+  "license_scope": "Retained component notices apply to their stated code; they do not grant redistribution rights to commercial ROMs, extracted media, saves or proprietary libraries."
 }
