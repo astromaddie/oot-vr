@@ -8,6 +8,8 @@ This is my Steam Frame fork of [Ship of Harkinian VR](https://github.com/ChocoTo
 
 The original Ship of Harkinian VR port supplies the core VR game and interactions. This fork adds the Frame build, controller support, persistent storage, camera controls and presentation changes.
 
+*You can also add the Art Plus Link by Skilar texture pack and Djipi's 3DS experience pack. After installing and running the game once on the Frame, download the packs at [https://gamebanana.com/mods/download/477979](https://gamebanana.com/mods/download/477979), extract them and and copy the .o2r files using SSH at ~/Documents/OoTVR/mods (or use Desktop on the Frame, download and extract the files and add them there). Start the game again. It might take a bit (about 2 minutes) to start the first time after adding the texture pack.
+
 ## VR features and Frame changes
 
 - Head-tracked stereoscopic play, with snap or smooth turning and seated recentering.
